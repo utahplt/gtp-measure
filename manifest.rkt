@@ -4,23 +4,12 @@
   (rename-out [-#%module-begin #%module-begin]))
 
 (require
-  (for-syntax racket/base syntax/parse))
+  (for-syntax
+    gtp-measure/private/parse
+    racket/base
+    syntax/parse))
 
 ;; =============================================================================
-
-(begin-for-syntax
-  (define (manifest-target-exists? str)
-    (or (file-exists? str) (directory-exists? str)))
-
-  (define-syntax-class gtp-measure-target
-    #:commit
-    #:attributes (string)
-    (pattern tgt:str
-      #:with string (syntax-e #'tgt)
-      #:when (manifest-target-exists? (syntax-e #'tgt)))
-    (pattern tgt:id
-      #:with string (symbol->string (syntax-e #'tgt))
-      #:when (manifest-target-exists? (syntax-e #'string)))))
 
 (define-syntax (-#%module-begin stx)
   (syntax-parse stx

@@ -1,6 +1,6 @@
 #lang info
 (define collection "gtp-measure")
-(define deps '("base" "scribble-lib"))
+(define deps '("base" "lang-file" "scribble-lib"))
 (define build-deps '("rackunit-lib" "racket-doc" "scribble-doc"))
 (define pkg-desc "For measuring")
 (define version "0.0")
