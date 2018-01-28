@@ -16,10 +16,12 @@
 )
 
 (require
+  file/glob
   lang-file/read-lang-file
+  racket/set
   syntax/parse
-  (only-in racket/set set=? for/set)
-  file/glob)
+  (only-in racket/path
+    file-name-from-path))
 
 ;; =============================================================================
 
@@ -42,11 +44,11 @@
              [t-dir (build-path str "typed")])
          (and (directory-exists? u-dir)
               (directory-exists? t-dir)
-              (set=?  (racket-files u-dir) (racket-files t-dir))))))
+              (set=? (racket-filenames u-dir) (racket-filenames t-dir))))))
 
-(define (racket-files dir)
+(define (racket-filenames dir)
   (for/set ([f (in-glob (build-path dir "*.rkt"))])
-    f))
+    (file-name-from-path f)))
 
 (define (valid-manifest-target? str)
   (and (file-exists? str)
@@ -65,3 +67,54 @@
     #:with string (symbol->string (syntax-e #'tgt))
     #:when (valid-target? (syntax-e #'string))))
 
+;; -----------------------------------------------------------------------------
+
+(module+ test
+  (require rackunit racket/runtime-path)
+
+  (define-runtime-path CWD ".")
+  (define TEST (build-path CWD "test"))
+  (define F-TGT (build-path TEST "sample-file-target.rkt"))
+  (define TU-TGT (build-path TEST "sample-typed-untyped-target"))
+  (define M-TGT (build-path TEST "sample-manifest-target.rkt"))
+
+  (test-case "valid-target?"
+    (check-equal?
+      (valid-target? F-TGT)
+      kind:file)
+    (check-equal?
+      (valid-target? TU-TGT)
+      kind:typed-untyped)
+    (check-equal?
+      (valid-target? M-TGT)
+      kind:manifest))
+
+  (test-case "valid-file-target?"
+    (check-true
+      (valid-file-target? F-TGT))
+    (check-false
+      (valid-file-target? TU-TGT))
+    (check-false
+      (valid-file-target? M-TGT)))
+
+  (test-case "valid-typed-untyped-target?"
+    (check-false
+      (valid-typed-untyped-target? F-TGT))
+    (check-true
+      (valid-typed-untyped-target? TU-TGT))
+    (check-false
+      (valid-typed-untyped-target? M-TGT)))
+
+  (test-case "valid-manifest-target?"
+    (check-false
+      (valid-manifest-target? F-TGT))
+    (check-false
+      (valid-manifest-target? TU-TGT))
+    (check-true
+      (valid-manifest-target? M-TGT)))
+
+  (test-case "racket-filenames"
+    (let ((v (racket-filenames TEST)))
+      (check-equal? (set-count v) 2)
+      (check set=? v (set (string->path "sample-file-target.rkt") (string->path "sample-manifest-target.rkt")))))
+)
