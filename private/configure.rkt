@@ -22,6 +22,10 @@
   gtp-measure-config/c
 
   (contract-out
+    [config->directory
+      (-> gtp-measure-config/c directory-exists? void?)]
+    [directory->config
+      (-> directory-exists? gtp-measure-config/c)]
     [init-config
      (->* [] [gtp-measure-config/c] gtp-measure-config/c)]))
 
@@ -35,6 +39,8 @@
   (for-syntax racket/base syntax/parse))
 
 ;; =============================================================================
+
+(define CONFIG.RKTD "config.rktd")
 
 (define *config-spec* (box #f))
 (define *default-config* (box #f))
@@ -99,8 +105,17 @@
 (define (file->config filename)
   (file->value filename))
 
+(define (directory->config dirname)
+  (file->config (build-path dirname CONFIG.RKTD)))
+
+(define (config->directory config dirname)
+  (define filename (build-path dirname CONFIG.RKTD))
+  (with-output-to-file filename #:exists 'error
+    (lambda ()
+      (writeln config))))
+
 (define (gtp-measure-config-file)
-  (define ps (writable-config-file "config.rktd" #:program "gtp-measure"))
+  (define ps (writable-config-file CONFIG.RKTD #:program "gtp-measure"))
   (unless (file-exists? ps)
     (make-parent-directory* ps)
     (with-output-to-file ps
@@ -120,9 +135,11 @@
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/runtime-path)
+  (require rackunit racket/runtime-path (only-in racket/file delete-directory/files))
 
   (define CWD ".")
+
+  (define TEST-DIR (build-path CWD "test"))
 
   (test-case "has-gtp-config-keys?"
     (check-pred has-gtp-config-keys?
@@ -195,4 +212,15 @@
     (check-equal?
       (hash-update* (make-immutable-hash '((a . 1) (b . 2))) (make-immutable-hash '((b . 3))))
       (make-immutable-hash '((a . 1) (b . 3)))))
+
+  (test-case "directory<->config"
+    (check-equal?
+      DEFAULT-CONFIG
+      (let ()
+        (define test-config (build-path TEST-DIR CONFIG.RKTD))
+        (delete-directory/files test-config #:must-exist? #false)
+        (config->directory DEFAULT-CONFIG TEST-DIR)
+        (define c (directory->config TEST-DIR))
+        (delete-directory/files test-config #:must-exist? #false)
+        c)))
 )
