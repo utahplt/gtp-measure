@@ -52,11 +52,11 @@
 (define (valid-target?/kind str kind)
   (cond
    [(eq? kind kind:file)
-    (and (valid-file-target? str) kind:file)]
+    (valid-file-target? str)]
    [(eq? kind kind:typed-untyped)
-    (and (valid-typed-untyped-target? str) kind:typed-untyped)]
+    (valid-typed-untyped-target? str)]
    [(eq? kind kind:manifest)
-    (and (valid-manifest-target? str) kind:manifest)]))
+    (valid-manifest-target? str)]))
 
 (define (valid-file-target? str)
   (and (file-exists? str)
@@ -89,10 +89,10 @@
   #:attributes (string kind)
   (pattern tgt:str
     #:with string (syntax-e #'tgt)
-    #:with kind #'#f)
+    #:with kind #f)
   (pattern tgt:id
     #:with string (symbol->string (syntax-e #'tgt))
-    #:with kind #'#f)
+    #:with kind #f)
   (pattern (tgt:id kind:id)
     #:with string (symbol->string (syntax-e #'tgt)))
 )
@@ -107,10 +107,10 @@
   (require rackunit racket/runtime-path)
 
   (define-runtime-path CWD ".")
-  (define TEST (build-path CWD "test"))
-  (define F-TGT (build-path TEST "sample-file-target.rkt"))
-  (define TU-TGT (build-path TEST "sample-typed-untyped-target"))
-  (define M-TGT (build-path TEST "sample-manifest-target.rkt"))
+  (define TEST (simplify-path (build-path CWD "test")))
+  (define F-TGT (simplify-path (build-path TEST "sample-file-target.rkt")))
+  (define TU-TGT (simplify-path (build-path TEST "sample-typed-untyped-target")))
+  (define M-TGT (simplify-path (build-path TEST "sample-manifest-target.rkt")))
 
   (test-case "valid-target?"
     (check-equal?
@@ -122,6 +122,16 @@
     (check-equal?
       (valid-target? M-TGT)
       kind:manifest))
+
+  (test-case "valid-target?/kind"
+    (check-true
+      (valid-target?/kind F-TGT kind:file))
+    (check-false
+      (valid-target?/kind F-TGT kind:typed-untyped))
+    (check-true
+      (valid-target?/kind TU-TGT kind:typed-untyped))
+    (check-false
+      (valid-target?/kind TU-TGT kind:manifest)))
 
   (test-case "valid-file-target?"
     (check-true
@@ -154,8 +164,28 @@
 
   (test-case "manifest->targets"
     (check-equal? (manifest->targets M-TGT)
-                  (list (cons (path->string (simplify-path F-TGT)) kind:file))))
+                  (list (cons (path->string F-TGT) kind:file))))
 
-  ;; TODO test valid-target?/kind
-  ;; TODO test the syntax class
+  (test-case "gtp-measure-target"
+    (define (parse stx)
+      (syntax-parse stx
+        [x:gtp-measure-target
+         (list #'x.string #'x.kind)]
+        [_
+         #false]))
+
+    (let ([v (list "sample-file-target.rkt" #f)])
+      (check-equal?
+        (map syntax-e (parse #'sample-file-target.rkt))
+        v)
+      (check-equal?
+        (map syntax-e (parse #'"sample-file-target.rkt"))
+        v))
+    (check-equal?
+      (map syntax-e (parse #`(sample-file-target.rkt #,kind:file)))
+      (list "sample-file-target.rkt" kind:file))
+
+    (check-equal?
+      (parse #'43)
+      #false))
 )
