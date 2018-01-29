@@ -93,7 +93,9 @@
   (pattern tgt:id
     #:with string (symbol->string (syntax-e #'tgt))
     #:with kind #f)
-  (pattern (tgt:id kind:id)
+  (pattern (tgt:str . kind:id)
+    #:with string (syntax-e #'tgt))
+  (pattern (tgt:id . kind:id)
     #:with string (symbol->string (syntax-e #'tgt)))
 )
 
@@ -182,7 +184,10 @@
         (map syntax-e (parse #'"sample-file-target.rkt"))
         v))
     (check-equal?
-      (map syntax-e (parse #`(sample-file-target.rkt #,kind:file)))
+      (map syntax-e (parse #`(sample-file-target.rkt . #,kind:file)))
+      (list "sample-file-target.rkt" kind:file))
+    (check-equal?
+      (map syntax-e (parse #`("sample-file-target.rkt" . #,kind:file)))
       (list "sample-file-target.rkt" kind:file))
 
     (check-equal?
