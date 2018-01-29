@@ -2,10 +2,13 @@
 
 ;; 
 
+(require racket/contract)
 (provide
   kind:typed-untyped
   kind:file
   kind:manifest
+
+  gtp-measure-kind/c
 
   valid-target?
   valid-file-target?
@@ -28,6 +31,9 @@
 (define kind:typed-untyped 'typed-untyped)
 (define kind:file 'file)
 (define kind:manifest 'manifest)
+
+(define gtp-measure-kind/c
+  (or/c kind:typed-untyped kind:file kind:manifest))
 
 (define (valid-target? str)
   (or (and (valid-file-target? str) kind:file)

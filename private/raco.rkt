@@ -32,11 +32,12 @@
   (or (valid-target? str)
       (raise-argument-error 'gtp-measure "valid-target?" str)))
 
-(define (resume-task? task)
+(define (resume-task? task*)
+  ;; TODO refactor for listof task (task*)
   (define short-msg
-    (format "Resume ~a ? [Y/N]" task))
+    (format "Resume ~a ? [Y/N]" task*))
   (define long-msg
-    (format "Found existing task for targets:~n~s" task))
+    (format "Found existing task for targets:~n~s" task*))
   (displayln long-msg)
   (define resume?
     (let loop ()
@@ -86,12 +87,14 @@
         (for/fold ([acc (unbox *targets*)])
                   ([tgt (in-list other-targets)])
           (cons (cons tgt (infer-target-type tgt)) acc))))
-    (define old-task
-      (resume-task all-targets))
-    (if (and old-task (resume-task? old-task))
-      (measure old-task)
-      (let ([config (init-config cmdline-config)])
-        (measure (init-task all-targets config))))))
+    (define old-task*
+      (current-tasks/targets all-targets))
+    (cond
+      [(and (not (null? old-task*)) (resume-task? old-task*))
+       => measure]
+      [else
+       (define config (init-config cmdline-config))
+       (measure (init-task all-targets config))])))
 
 ;; =============================================================================
 
@@ -104,7 +107,7 @@
     (parameterize ([current-output-port f->test-out]
                    [current-input-port test->f-in])
       (check-true
-        (begin (displayln 'Y test->f-out) (resume-task? (void))))
+        (begin (displayln 'Y test->f-out) (resume-task? '(X))))
       (check-true
         (string-prefix? (read-line f->test-in) "Found existing task"))
       (void ;; prints the value "#<void>"
@@ -112,7 +115,7 @@
       (check-true
         (string-prefix? (read-line f->test-in) "Resume"))
       (check-false
-        (begin (displayln 'N test->f-out) (resume-task? (void))))
+        (begin (displayln 'N test->f-out) (resume-task? '(X))))
       (void))
     (close-input-port test->f-in)
     (close-input-port f->test-in)

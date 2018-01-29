@@ -19,6 +19,8 @@
 
   config-ref
 
+  gtp-measure-config/c
+
   (contract-out
     [init-config
      (->* [] [gtp-measure-config/c] gtp-measure-config/c)]))
