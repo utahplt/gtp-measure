@@ -4,6 +4,8 @@
 
 (require racket/contract)
 (provide
+  GTP-MEASURE-TARGETS-ID
+
   kind:typed-untyped
   kind:file
   kind:manifest
@@ -11,11 +13,16 @@
   gtp-measure-kind/c
 
   valid-target?
+  valid-target?/kind
   valid-file-target?
   valid-typed-untyped-target?
   valid-manifest-target?
 
   gtp-measure-target
+
+  manifest->targets
+
+  typed-untyped->num-units
 )
 
 (require
@@ -28,6 +35,8 @@
 
 ;; =============================================================================
 
+(define GTP-MEASURE-TARGETS-ID 'gtp-measure-targets)
+
 (define kind:typed-untyped 'typed-untyped)
 (define kind:file 'file)
 (define kind:manifest 'manifest)
@@ -39,6 +48,15 @@
   (or (and (valid-file-target? str) kind:file)
       (and (valid-typed-untyped-target? str) kind:typed-untyped)
       (and (valid-manifest-target? str) kind:manifest)))
+
+(define (valid-target?/kind str kind)
+  (cond
+   [(eq? kind kind:file)
+    (and (valid-file-target? str) kind:file)]
+   [(eq? kind kind:typed-untyped)
+    (and (valid-typed-untyped-target? str) kind:typed-untyped)]
+   [(eq? kind kind:manifest)
+    (and (valid-manifest-target? str) kind:manifest)]))
 
 (define (valid-file-target? str)
   (and (file-exists? str)
@@ -56,6 +74,9 @@
   (for/set ([f (in-glob (build-path dir "*.rkt"))])
     (file-name-from-path f)))
 
+(define (typed-untyped->num-units tu-dir)
+  (set-count (racket-filenames (build-path tu-dir "typed"))))
+
 (define (valid-manifest-target? str)
   (and (file-exists? str)
        (gtp-manifest-file? str)))
@@ -65,13 +86,20 @@
 
 (define-syntax-class gtp-measure-target
   #:commit
-  #:attributes (string)
+  #:attributes (string kind)
   (pattern tgt:str
     #:with string (syntax-e #'tgt)
-    #:when (valid-target? (syntax-e #'tgt)))
+    #:with kind #'#f)
   (pattern tgt:id
     #:with string (symbol->string (syntax-e #'tgt))
-    #:when (valid-target? (syntax-e #'string))))
+    #:with kind #'#f)
+  (pattern (tgt:id kind:id)
+    #:with string (symbol->string (syntax-e #'tgt)))
+)
+
+(define (manifest->targets ps)
+  (parameterize ([current-namespace (make-base-namespace)])
+    (dynamic-require ps GTP-MEASURE-TARGETS-ID)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -123,4 +151,11 @@
     (let ((v (racket-filenames TEST)))
       (check-equal? (set-count v) 2)
       (check set=? v (set (string->path "sample-file-target.rkt") (string->path "sample-manifest-target.rkt")))))
+
+  (test-case "manifest->targets"
+    (check-equal? (manifest->targets M-TGT)
+                  (list (cons (path->string (simplify-path F-TGT)) kind:file))))
+
+  ;; TODO test valid-target?/kind
+  ;; TODO test the syntax class
 )
