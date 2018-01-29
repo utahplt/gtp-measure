@@ -15,9 +15,8 @@
   (syntax-parse stx
    [(_ tgt*:gtp-measure-target ...)
     #'(#%module-begin
-        (provide gtp-measure-targets gtp-measure-config)
-        (define gtp-measure-config '#hash())
-        (define gtp-measure-targets '(tgt*.string ...)))]))
+        (provide gtp-measure-targets)
+        (define gtp-measure-targets '((tgt*.string . tgt*.kind) ...)))]))
 
 (module* reader syntax/module-reader
   gtp-measure/manifest
