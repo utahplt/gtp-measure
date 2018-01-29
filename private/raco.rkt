@@ -36,7 +36,7 @@
   (define short-msg
     (format "Resume ~a ? [Y/N]" task))
   (define long-msg
-    (format "Found existing task for targets:~n~s~n" task))
+    (format "Found existing task for targets:~n~s" task))
   (displayln long-msg)
   (define resume?
     (let loop ()
@@ -52,7 +52,9 @@
    [(Y YE YES YOLO)
     'Y]
    [(N NO)
-    'N]))
+    'N]
+   [else
+    #false]))
 
 ;; =============================================================================
 
@@ -90,3 +92,39 @@
       (measure old-task)
       (let ([config (init-config cmdline-config)])
         (measure (init-task all-targets config))))))
+
+;; =============================================================================
+
+(module+ test
+  (require rackunit racket/string)
+
+  (test-case "resume-task"
+    (define-values [test->f-in test->f-out] (make-pipe))
+    (define-values [f->test-in f->test-out] (make-pipe))
+    (parameterize ([current-output-port f->test-out]
+                   [current-input-port test->f-in])
+      (check-true
+        (begin (displayln 'Y test->f-out) (resume-task? (void))))
+      (check-true
+        (string-prefix? (read-line f->test-in) "Found existing task"))
+      (void ;; prints the value "#<void>"
+        (read-line f->test-in))
+      (check-true
+        (string-prefix? (read-line f->test-in) "Resume"))
+      (check-false
+        (begin (displayln 'N test->f-out) (resume-task? (void))))
+      (void))
+    (close-input-port test->f-in)
+    (close-input-port f->test-in)
+    (close-output-port test->f-out)
+    (close-output-port f->test-out)
+    (void))
+
+  (test-case "parse-yes-or-no"
+    (check-equal? (parse-yes-or-no "Y") 'Y)
+    (check-equal? (parse-yes-or-no "yes") 'Y)
+    (check-equal? (parse-yes-or-no "n") 'N)
+    (check-equal? (parse-yes-or-no "NO") 'N)
+    (check-equal? (parse-yes-or-no "idk") #false)
+    (check-equal? (parse-yes-or-no "") #false))
+)
