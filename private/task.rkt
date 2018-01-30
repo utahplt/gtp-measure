@@ -10,7 +10,6 @@
       (-> (listof gtp-measure-target/c) gtp-measure-config/c gtp-measure-task/c)]))
 
 (require
-  basedir
   gtp-measure/private/configure
   gtp-measure/private/parse
   racket/path
@@ -62,7 +61,8 @@
   (make-gtp-measure-task uid targets config))
 
 (define (make-task-directory uid)
-  (define task-dir (build-path (writable-config-dir #:program "gtp-measure") (number->string uid)))
+  (define task-dir
+    (build-path (gtp-measure-data-dir) (number->string uid)))
   (if (directory-exists? task-dir)
     (raise-arguments-error 'init-task "(not/c directory-exists?)"
                            "directory" task-dir
@@ -132,8 +132,7 @@
               (displayln (natural->bitstring (random num-configurations) #:pad num-units)))))))))
 
 (define (fresh-uid)
-  (for/sum ([cd (in-list (list-config-dirs #:program "gtp-measure"))])
-    (length (directory-list cd))))
+  (length (directory-list (gtp-measure-data-dir))))
 
 (define normalize-targets
   (let ([cwd (normalize-path CWD)])
@@ -210,8 +209,7 @@
   (test-case "fresh-uid"
     (define uid (format "~a" (fresh-uid)))
     (check-pred (lambda (x) (not (set-member? x uid)))
-      (for*/list ([cd (list-config-dirs #:program "gtp-measure")]
-                  [d (in-list (directory-list cd))])
+      (for*/list ([d (in-list (directory-list (gtp-measure-data-dir)))])
         (path->string d))))
 
   (test-case "normalize-targets"

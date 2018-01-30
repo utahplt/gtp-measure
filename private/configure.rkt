@@ -21,6 +21,8 @@
 
   gtp-measure-config/c
 
+  gtp-measure-data-dir
+
   (contract-out
     [config->directory
       (-> gtp-measure-config/c (and/c path-string? directory-exists?) void?)]
@@ -35,6 +37,7 @@
     make-parent-directory*
     file->value)
   (only-in basedir
+    writable-data-dir
     writable-config-file)
   (for-syntax racket/base syntax/parse))
 
@@ -122,6 +125,13 @@
       (lambda () (writeln (make-immutable-hash)))))
   ps)
 
+(define (gtp-measure-data-dir)
+  (define ps (writable-data-dir #:program "gtp-measure"))
+  (unless (directory-exists? ps)
+    (make-parent-directory* ps)
+    (make-directory ps))
+  ps)
+
 (define (update-config old-config new-config)
   (if new-config
     (hash-update* old-config new-config)
@@ -189,6 +199,9 @@
   (test-case "gtp-measure-config-file"
     (let ((v (gtp-measure-config-file)))
       (check-pred file-exists? v)))
+
+  (test-case "gtp-measure-data-dir"
+    (check-pred directory-exists? (gtp-measure-data-dir)))
 
   (test-case "update-config"
     (check-equal?
