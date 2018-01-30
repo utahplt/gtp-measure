@@ -6,6 +6,8 @@
   copy-file*
   copy-racket-file*
 
+  enumerate
+
   gtp-measure-logger
   log-gtp-measure-fatal
   log-gtp-measure-error
@@ -31,6 +33,11 @@
 
 (define (copy-racket-file* src dst)
   (copy-file* src dst "*.rkt"))
+
+(define (enumerate x*)
+  (for/list ([x (in-list x*)]
+             [i (in-naturals)])
+    (cons i x)))
 
 ;; =============================================================================
 
@@ -58,4 +65,15 @@
       (length (directory-list MY-DIR)))
     ;; cleanup
     (delete-directory/files MY-DIR))
+
+  (test-case "enumerate"
+    (check-equal?
+      (enumerate '())
+      '())
+    (check-equal?
+      (enumerate '(A))
+      '((0 . A)))
+    (check-equal?
+      (enumerate '(A B C))
+      '((0 . A) (1 . B) (2 . C))))
 )
