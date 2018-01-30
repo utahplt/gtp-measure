@@ -16,6 +16,8 @@
   key:iterations
   key:num-samples
   key:jit-warmup
+  key:start-time
+  key:argv
 
   config-ref
 
@@ -71,7 +73,9 @@
     [key:bin                 #f  (or/c #f path-string?)]
     [key:iterations           8  exact-positive-integer?]
     [key:num-samples         10  exact-positive-integer?]
-    [key:jit-warmup           1  exact-positive-integer?])
+    [key:jit-warmup           1  exact-positive-integer?]
+    [key:start-time           0  real?]
+    [key:argv              '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)])
 
   (assert-initialized! *default-config* *config-spec*)
 
