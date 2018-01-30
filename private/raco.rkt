@@ -115,7 +115,10 @@
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/string)
+  (require
+    rackunit
+    racket/string
+    (submod gtp-measure/private/util test))
 
   (test-case "resume-task"
     (define-values [test->f-in test->f-out] (make-pipe))

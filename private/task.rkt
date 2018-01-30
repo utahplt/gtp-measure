@@ -372,7 +372,12 @@
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/set racket/path (only-in racket/port with-input-from-string))
+  (require
+    rackunit
+    racket/set
+    racket/path
+    (submod gtp-measure/private/util test)
+    (only-in racket/port with-input-from-string))
 
   (define TEST-DIR (simplify-path (build-path CWD "test")))
   (define F-TGT (build-path TEST-DIR "sample-file-target.rkt"))

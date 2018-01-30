@@ -158,7 +158,7 @@
     rackunit
     racket/runtime-path
     (only-in racket/file delete-directory/files)
-    (only-in gtp-measure/private/util filesystem-test-case))
+    (submod gtp-measure/private/util test))
 
   (define CWD ".")
 

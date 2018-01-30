@@ -8,8 +8,6 @@
 
   enumerate
 
-  filesystem-test-case
-
   gtp-measure-logger
   log-gtp-measure-fatal
   log-gtp-measure-error
@@ -19,13 +17,10 @@
 
 (require
   file/glob
-  rackunit
   (only-in racket/file
     delete-directory/files)
   (only-in racket/path
-    file-name-from-path)
-  (for-syntax
-    racket/base))
+    file-name-from-path))
 
 ;; =============================================================================
 
@@ -44,19 +39,16 @@
              [i (in-naturals)])
     (cons i x)))
 
-(define-syntax (filesystem-test-case stx)
-  (if (getenv "CI")
-    #'(void)
-    (with-syntax ([stuff (cdr (syntax-e stx))])
-      #'(test-case . stuff))))
-
 ;; =============================================================================
 
 (module+ test
+  (provide filesystem-test-case)
+
   (require
     rackunit
     racket/runtime-path
     (only-in racket/set set-count)
+    (for-syntax racket/base)
     (only-in gtp-measure/private/parse racket-filenames))
 
   (define-runtime-path CWD ".")
@@ -64,6 +56,12 @@
   (define TEST-DIR (build-path CWD "test"))
   (define T-DIR (build-path TEST-DIR "sample-typed-untyped-target" "typed"))
   (define MY-DIR (build-path TEST-DIR "util-test"))
+
+  (define-syntax (filesystem-test-case stx)
+    (if (getenv "CI")
+      #'(void)
+      (with-syntax ([stuff (cdr (syntax-e stx))])
+        #'(test-case . stuff))))
 
   (filesystem-test-case "copy-racket-file*"
     (when (directory-exists? MY-DIR)
