@@ -1,2 +1,2 @@
 #lang racket/base
-(void)
+(time (void))
