@@ -14,9 +14,14 @@
   gtp-measure/private/configure
   gtp-measure/private/parse
   racket/path
-  racket/runtime-path)
+  racket/runtime-path
+  (only-in gtp-plot/util
+    natural->bitstring))
 
 ;; =============================================================================
+
+;; TODO need ... a public API for this
+(define *MAX-UNITS* (make-parameter 12))
 
 (define-runtime-path CWD ".")
 
@@ -89,19 +94,40 @@
       [(eq? kind kind:manifest)
        (define new-targets (manifest->targets ps))
        (define new-task-dir (build-path task-dir (format-target-tag ps i)))
-       (write-checklist new-targets new-task-dir)]
+       (make-directory new-task-dir)
+       (write-checklist new-targets config new-task-dir)]
       [else
        (raise-arguments-error 'write-checklist "invalid target kind"
                               "kind" kind
                               "targets" targets)])))
 
 (define (format-target-tag str i)
-  (format "~a-~a" i str))
+  (format "~a-~a" i (path->string (path-remove-extension (file-name-from-path str)))))
 
-(define (write-typed-untyped-checklist tu-path filename config)
+(define (path-remove-extension ps)
+  (path-replace-extension ps #""))
+
+(define (write-typed-untyped-checklist tu-path base-filename config)
   (define num-units (typed-untyped->num-units tu-path))
-  (define num-samples (config-ref config key:num-samples))
-  (error 'notimpld))
+  (define exhaustive? (<= num-units (*MAX-UNITS*)))
+  (define num-configurations (expt 2 num-units))
+  (if exhaustive?
+    (let ([filename (path-add-extension base-filename #".in" #".")])
+      (with-output-to-file filename #:exists 'error
+        (lambda ()
+          (for ((i (in-range num-configurations)))
+            (displayln (natural->bitstring i #:pad num-units))))))
+    (let ([num-samples (config-ref config key:num-samples)]
+          [sample-size (* 10 num-units)]) ;; TODO abstract the sample-size
+      (for ([sample-id (in-range num-samples)])
+        (define filename
+          (path-add-extension
+            (path-add-extension base-filename (format "~a" sample-id) #".")
+            #".in" #"_"))
+        (with-output-to-file filename
+          (lambda ()
+            (for ((i (in-range sample-size)))
+              (displayln (natural->bitstring (random num-configurations) #:pad num-units)))))))))
 
 (define (fresh-uid)
   (for/sum ([cd (in-list (list-config-dirs #:program "gtp-measure"))])
@@ -119,12 +145,72 @@
 ;; =============================================================================
 
 (module+ test
-  (require rackunit)
+  (require rackunit racket/set racket/path racket/file)
 
   (define TEST-DIR (simplify-path (build-path CWD "test")))
   (define F-TGT (build-path TEST-DIR "sample-file-target.rkt"))
   (define T-TGT (build-path TEST-DIR "sample-typed-untyped-target"))
+  (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
+
+  (test-case "task-print"
+    (define t (make-gtp-measure-task "A" "B" "C"))
+    (define short-str (format "~a" t))
+    (define long-str (format "~s" t))
+    (check-regexp-match #rx"A" short-str)
+    (check-false
+      (regexp-match? #rx"B" short-str))
+    (check-regexp-match #rx"A" long-str)
+    (check-regexp-match #rx"B" long-str)
+    (check-regexp-match #rx"C" long-str))
+
+  (test-case "write-checklist"
+    (define tgts (list (cons F-TGT kind:file) (cons T-TGT kind:typed-untyped) (cons M-TGT kind:manifest)))
+    (define config (init-config))
+    (define task-dir (build-path TEST-DIR (format "~a" (fresh-uid))))
+    ;; modify the state of the filesystem
+    (void
+      (make-directory task-dir)
+      (write-checklist tgts config task-dir))
+    ;; check modified state
+    (let ([tu-path (build-path task-dir "1-sample-typed-untyped-target.in")]
+          [m-dir (build-path task-dir "2-sample-manifest-target")])
+      (check-pred file-exists?
+        tu-path)
+      (check-equal?
+        (file->lines tu-path)
+        (for/list ((i (in-range 4))) (natural->bitstring i #:pad 2)))
+      (check-pred directory-exists?
+        m-dir)
+      (check-pred null?
+        (directory-list m-dir)))
+    ;; clean up
+    (void
+      (delete-directory/files task-dir)))
+
+  (test-case "format-target-tag"
+    (check-equal?
+      (format-target-tag "foo/bar.rkt" 17)
+      "17-bar"))
+
+  (test-case "path-remove-extension"
+    (check-equal?
+      (path-remove-extension "foo/bar.rkt")
+      (string->path "foo/bar")))
+
+  (test-case "write-targets"
+    (define orig-tgts (list (cons (path->string F-TGT) kind:file)))
+    (define filename (write-targets orig-tgts TEST-DIR))
+    (define m-tgts (manifest->targets filename))
+    (delete-file filename)
+    (check-equal? orig-tgts m-tgts))
+
+  (test-case "fresh-uid"
+    (define uid (format "~a" (fresh-uid)))
+    (check-pred (lambda (x) (not (set-member? x uid)))
+      (for*/list ([cd (list-config-dirs #:program "gtp-measure")]
+                  [d (in-list (directory-list cd))])
+        (path->string d))))
 
   (test-case "normalize-targets"
     (let ([p0 F-TGT]
@@ -136,12 +222,5 @@
         (normalize-targets (list (cons p1 kind:file) (cons p0 kind:file)))
         (for/list ([p (in-list (list p0 p1))])
           (cons (path->bytes (normalize-path p)) kind:file)))))
-
-  (test-case "write-targets"
-    (define orig-tgts (list (cons (path->string F-TGT) kind:file)))
-    (define filename (write-targets orig-tgts TEST-DIR))
-    (define m-tgts (manifest->targets filename))
-    (delete-file filename)
-    (check-equal? orig-tgts m-tgts))
 
 )
