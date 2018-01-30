@@ -23,6 +23,8 @@
   manifest->targets
 
   typed-untyped->num-units
+
+  racket-filenames
 )
 
 (require

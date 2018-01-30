@@ -23,6 +23,15 @@
   racket/file
   racket/path
   racket/runtime-path
+  (only-in racket/system
+    process)
+  (only-in racket/list
+    make-list)
+  (only-in racket/string
+    string-join)
+  (only-in racket/port
+    port->string
+    port->lines)
   (only-in gtp-plot/util
     natural->bitstring))
 
@@ -37,6 +46,8 @@
 (define CONFIG "configuration")
 (define BASE "base")
 (define BOTH "both")
+(define TYPED "typed")
+(define UNTYPED "untyped")
 
 (define (task-print t port write?)
   (if write?
@@ -242,26 +253,98 @@
   (list (make-gtp-measure-subtask out-file thunk)))
 
 (define (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)
+  (define entry-file (path->string (build-path config-dir (config-ref config key:entry-point))))
   (for/list ([in-file (in-list in-file*)]
              [out-file (in-list out-file*)])
-    (define (thunk)
-      ;; each line of in-file = configuration
-      ;; setup config, then `make-file-timer` to a good output location
-      ;; TODO
-      (error 'TODO))
+    (define (thunk [out-port (current-output-port)])
+      (with-input-from-file in-file
+        (lambda ()
+          (for ([configuration-id (in-lines)])
+            (copy-configuration! configuration-id tu-dir config-dir)
+            (define-values [configuration-in configuration-out] (make-pipe))
+            (void
+              (write configuration-id out-port)
+              ((make-file-timer entry-file config) configuration-out)
+              (close-output-port configuration-out)
+              (writeln (port->lines configuration-in) out-port)
+              (close-input-port configuration-in))))))
     (make-gtp-measure-subtask out-file thunk)))
+
+(define (copy-configuration! configuration-id src-dir dst-dir)
+  (define t-dir (build-path src-dir TYPED "*.rkt"))
+  (define u-dir (build-path src-dir UNTYPED "*.rkt"))
+  (for ([t-file (racket-filenames t-dir)]
+        [u-file (racket-filenames u-dir)]
+        [bit (in-string configuration-id)])
+    (unless (equal? t-file u-file)
+      (raise-arguments-error 'copy-configuration! "mis-matched filenames"
+                             "untyped file" u-file
+                             "typed file" t-file
+                             "directory" src-dir))
+    (copy-file (build-path (if (eq? #\1 bit) t-dir u-dir) t-file)
+               (build-path dst-dir t-file)
+               #true)))
 
 (define (manifest->subtask* dirname task-dir config)
   (raise-user-error 'nope))
 
-(define (make-file-timer filename config [pre-out-port #false])
-  (lambda ()
-    (define out-port (or pre-out-port (current-output-port)))
-    ;; delete compiled files
-    ;; compile file
-    ;; run N times
-    ;; collect timings, one for each run, print to current output port
-    (error 'TODO)))
+(define (make-file-timer filename config)
+  (define-values [raco-bin racket-bin]
+    (bin->rackets (config-ref config key:bin)))
+  (define iterations (config-ref config key:iterations))
+  (define jit-warmup (config-ref config key:jit-warmup))
+  (define devnull ;; https://stackoverflow.com/a/313115/5237018
+    (case (system-type 'os) ((windows) "NUL") (else "/dev/null")))
+  (define cmd
+    (let* ([compile-cmd (format "~a make -v ~a" raco-bin filename)]
+           [run-cmd (format "~a ~a" racket-bin filename)]
+           [ignore-cmd (format "~a > ~a" run-cmd devnull)])
+    (string-join
+      (append
+        (list compile-cmd)
+        (make-list jit-warmup ignore-cmd)
+        (make-list iterations run-cmd))
+      " && ")))
+  (lambda ([out-port (current-output-port)])
+    (define-values [sub-in sub-out sub-pid sub-err sub-control]
+      (apply values (process cmd)))
+    (log-gtp-measure-info "begin subprocess ~a" sub-pid)
+    (define exit-code
+      (let loop ()
+        (sub-control 'wait)
+        (or (sub-control 'exit-code)
+            (begin (log-gtp-measure-warning "resume subprocess ~a" sub-pid)
+                   (loop)))))
+    (log-gtp-measure-info "end subprocess ~a" sub-pid)
+    (cond
+     [(zero? exit-code)
+      (for ((ln (in-lines sub-in))
+            #:when (time-line? ln))
+        (writeln ln out-port))
+      (void)]
+     [else
+      (log-gtp-measure-error "subprocess ~a terminated with exit code ~a" sub-pid exit-code)
+      (log-gtp-measure-error (port->string sub-err))
+      (void)])
+    (close-output-port sub-out)
+    (close-input-port sub-in)
+    (close-output-port sub-err)
+    (void)))
+
+(define time-line?
+  (let ([rx #rx"^cpu time:"])
+    (lambda (ln)
+      (regexp-match? rx ln))))
+
+(define (bin->rackets bin-dir)
+  (define bin*
+    (for/list ([str (in-list '("raco" "racket"))])
+      (define bin (build-path bin-dir str))
+      (if (file-exists? bin)
+        (path->string bin)
+        (raise-arguments-error 'gtp-measure (format "failed to find '~a' executable")
+                               "directory" bin-dir))))
+  (values (car bin*) (cadr bin*)))
 
 (define (subtask-run! st)
   (define run! (gtp-measure-subtask-thunk st))
@@ -352,5 +435,12 @@
         (normalize-targets (list (cons p1 kind:file) (cons p0 kind:file)))
         (for/list ([p (in-list (list p0 p1))])
           (cons (path->string (normalize-path p)) kind:file)))))
+
+  (test-case "bin->rackets"
+    (define racket-path (find-executable-path (find-system-path 'exec-file)))
+    (define racket-dir (path-only racket-path))
+    (define-values [raco-bin racket-bin] (bin->rackets racket-dir))
+    (check-equal? racket-bin (path->string racket-path))
+    (check-equal? (path->string (file-name-from-path raco-bin)) "raco"))
 
 )

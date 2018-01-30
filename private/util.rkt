@@ -4,7 +4,14 @@
 
 (provide
   copy-file*
-  copy-racket-file*)
+  copy-racket-file*
+
+  gtp-measure-logger
+  log-gtp-measure-fatal
+  log-gtp-measure-error
+  log-gtp-measure-warning
+  log-gtp-measure-info
+  log-gtp-measure-debug)
 
 (require
   file/glob
@@ -14,6 +21,8 @@
     file-name-from-path))
 
 ;; =============================================================================
+
+(define-logger gtp-measure)
 
 (define (copy-file* src dst [pattern "*.*"])
   (for ([src-file (in-glob (build-path src pattern))])
