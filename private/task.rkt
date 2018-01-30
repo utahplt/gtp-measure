@@ -252,27 +252,26 @@
     (make-file-timer in-file config))
   (list (make-gtp-measure-subtask out-file thunk)))
 
-(define (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)
-  (define entry-file (path->string (build-path config-dir (config-ref config key:entry-point))))
+(define (typed-untyped->subtask* tu-dir configuration-dir in-file* out-file* config)
+  (define entry-file (path->string (build-path configuration-dir (config-ref config key:entry-point))))
   (for/list ([in-file (in-list in-file*)]
              [out-file (in-list out-file*)])
     (define (thunk [out-port (current-output-port)])
       (with-input-from-file in-file
         (lambda ()
           (for ([configuration-id (in-lines)])
-            (copy-configuration! configuration-id tu-dir config-dir)
+            (copy-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
             (void
-              (write configuration-id out-port)
               ((make-file-timer entry-file config) configuration-out)
               (close-output-port configuration-out)
-              (writeln (port->lines configuration-in) out-port)
+              (writeln (list configuration-id (port->lines configuration-in)) out-port)
               (close-input-port configuration-in))))))
     (make-gtp-measure-subtask out-file thunk)))
 
 (define (copy-configuration! configuration-id src-dir dst-dir)
-  (define t-dir (build-path src-dir TYPED "*.rkt"))
-  (define u-dir (build-path src-dir UNTYPED "*.rkt"))
+  (define t-dir (build-path src-dir TYPED))
+  (define u-dir (build-path src-dir UNTYPED))
   (for ([t-file (racket-filenames t-dir)]
         [u-file (racket-filenames u-dir)]
         [bit (in-string configuration-id)])
@@ -320,7 +319,7 @@
      [(zero? exit-code)
       (for ((ln (in-lines sub-in))
             #:when (time-line? ln))
-        (writeln ln out-port))
+        (displayln ln out-port))
       (void)]
      [else
       (log-gtp-measure-error "subprocess ~a terminated with exit code ~a" sub-pid exit-code)
@@ -328,7 +327,7 @@
       (void)])
     (close-output-port sub-out)
     (close-input-port sub-in)
-    (close-output-port sub-err)
+    (close-input-port sub-err)
     (void)))
 
 (define time-line?
@@ -354,13 +353,16 @@
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/set racket/path)
+  (require rackunit racket/set racket/path (only-in racket/port with-input-from-string))
 
   (define TEST-DIR (simplify-path (build-path CWD "test")))
   (define F-TGT (build-path TEST-DIR "sample-file-target.rkt"))
   (define T-TGT (build-path TEST-DIR "sample-typed-untyped-target"))
   (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
+
+  (define (system-racket-path)
+    (find-executable-path (find-system-path 'exec-file)))
 
   (test-case "task-print"
     (define t (make-gtp-measure-task "A" "B" "C"))
@@ -376,7 +378,7 @@
   (test-case "write-checklist"
     (define tgts (list (cons F-TGT kind:file) (cons T-TGT kind:typed-untyped) (cons M-TGT kind:manifest)))
     (define config (init-config))
-    (define task-dir (build-path TEST-DIR (format "~a" (fresh-uid))))
+    (define task-dir (build-path TEST-DIR (format "test-dir-~a" (length (directory-list TEST-DIR)))))
     ;; modify the state of the filesystem
     (void
       (make-directory task-dir)
@@ -436,11 +438,132 @@
         (for/list ([p (in-list (list p0 p1))])
           (cons (path->string (normalize-path p)) kind:file)))))
 
+  (test-case "file->subtask*"
+    (define test-file (build-path TEST-DIR "test-file->subtask.txt"))
+    (when (file-exists? test-file)
+      (delete-file test-file))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:bin (path-only (system-racket-path)))
+                           (cons key:iterations 2)
+                           (cons key:jit-warmup 2)))))
+    (define st* (file->subtask* F-TGT test-file config))
+    (check-equal? (length st*) 1)
+    (define out-str*
+      (begin
+        (subtask-run! (car st*))
+        (begin0
+          (file->lines test-file)
+          (delete-file test-file))))
+    (check-equal? (length out-str*) (config-ref config key:iterations))
+    (check-true (andmap time-line? out-str*)))
+
+  (test-case "copy-configuration!"
+    (define configuration-dir (build-path TEST-DIR "sample-typed-untyped-configuration"))
+    (unless (directory-exists? configuration-dir)
+      (make-directory configuration-dir))
+    (copy-configuration! "00" T-TGT configuration-dir)
+    (check-pred file-exists?
+      (build-path configuration-dir "main.rkt"))
+    (check-equal? (length (directory-list configuration-dir)) 2))
+
+  (test-case "typed-untyped->subtask*"
+    (define configuration-dir (build-path TEST-DIR "sample-typed-untyped-configuration"))
+    (unless (directory-exists? configuration-dir)
+      (make-directory configuration-dir))
+    (define configuration*
+      (for/list ([i (in-range 4)])
+        (natural->bitstring i #:pad 2)))
+    (define in-file
+      (let ([p (build-path TEST-DIR "sample-typed-untyped.in")])
+        (with-output-to-file p
+          (lambda ()
+            (for ((c (in-list configuration*)))
+              (displayln c))))
+        p))
+    (define out-file
+      (build-path TEST-DIR "sample-typed-untyped.out"))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:bin (path-only (system-racket-path)))
+                           (cons key:iterations 2)
+                           (cons key:jit-warmup 0)))))
+    (define st* (typed-untyped->subtask* T-TGT configuration-dir (list in-file) (list out-file) config))
+    (check-equal? (length st*) 1)
+    (define out-str*
+      (begin (subtask-run! (car st*))
+             (begin0
+               (file->lines out-file)
+               (delete-directory/files configuration-dir)
+               (delete-file in-file)
+               (delete-file out-file))))
+    (check-equal? (length out-str*) 4)
+    (for ((c (in-list configuration*))
+          (str (in-list out-str*)))
+      (define v
+        (with-input-from-string str read))
+      (check-pred list? v)
+      (check-equal? (car v) c)
+      (check-equal? (length (cadr v)) (config-ref config key:iterations))
+      (check-true (andmap time-line? (cadr v)))))
+
+  (test-case "make-file-timer"
+    (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
+    (when (file-exists? test-file)
+      (delete-file test-file))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:bin (path-only (system-racket-path)))
+                           (cons key:iterations 2)
+                           (cons key:jit-warmup 2)))))
+    (define thunk (make-file-timer F-TGT config))
+    (define out-str-1*
+      (begin
+        (call-with-output-file test-file thunk)
+        (begin0
+          (file->lines test-file)
+          (delete-file test-file))))
+    (define out-str-2*
+      (begin
+        (with-output-to-file test-file thunk)
+        (begin0
+          (file->lines test-file)
+          (delete-file test-file))))
+    (for ((out-str* (in-list (list out-str-1* out-str-2*))))
+      (check-equal? (length out-str*) (config-ref config key:iterations))
+      (check-equal? (length out-str*) (config-ref config key:iterations))
+      (check-pred time-line? (car out-str*))
+      (check-true (andmap time-line? out-str*))))
+
+  (test-case "time-line?"
+    (check-pred time-line?
+      "cpu time: 1012 real time: 1009 gc time: 104")
+    (check-pred time-line?
+      "cpu time: 1012 real time: 1009 gc time: 104\n")
+    (check-false
+      (time-line? "yolo")))
+
   (test-case "bin->rackets"
-    (define racket-path (find-executable-path (find-system-path 'exec-file)))
+    (define racket-path (system-racket-path))
     (define racket-dir (path-only racket-path))
     (define-values [raco-bin racket-bin] (bin->rackets racket-dir))
     (check-equal? racket-bin (path->string racket-path))
     (check-equal? (path->string (file-name-from-path raco-bin)) "raco"))
+
+  (test-case "subtask-run!"
+    (define message "everything a-ok")
+    (define test-file (build-path TEST-DIR "subtask-run-test.txt"))
+    (define (thunk)
+      (display message))
+    (define sample-subtask (make-gtp-measure-subtask test-file thunk))
+    (define out-str
+      (begin
+        (when (file-exists? test-file)
+          (delete-file test-file))
+        (subtask-run! sample-subtask)
+        (begin0
+          (file->string test-file)
+          (delete-file test-file))))
+    (check-equal? out-str message))
 
 )
