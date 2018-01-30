@@ -1,9 +1,6 @@
 #lang racket/base
 
-;; Stage 3: Summarize results
-
-;; ... finished job, name target, when started, what results, any sub-jobs
-;; be generic?
+;; Summarize the results of a task
 
 (provide
   summarize)

@@ -1,9 +1,7 @@
 #lang racket/base
 
-;; TODO
-;; - parse command-line options into configuration settings
-;; - infer the kind of each target
-;; - invoke "Stage 1 Configure" and "Stage 2 Measure" and "Stage 3 Summarize"
+;; Command-line API
+;; Run `raco gtp-measure --help` to see docs
 
 (require
   gtp-measure/private/configure

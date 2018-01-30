@@ -1,6 +1,9 @@
 #lang racket/base
 
-;; Stage 1: Configure a job
+;; Configuration options
+;; - defines the keys / values / contracts for a configuration
+;; - provides tools for working with a config,
+;;   which is basically an immutable hash table but you don't need to know that
 
 (require racket/contract)
 (provide
@@ -151,7 +154,11 @@
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/runtime-path (only-in racket/file delete-directory/files))
+  (require
+    rackunit
+    racket/runtime-path
+    (only-in racket/file delete-directory/files)
+    (only-in gtp-measure/private/util filesystem-test-case))
 
   (define CWD ".")
 
@@ -206,7 +213,7 @@
     (let ((v (gtp-measure-config-file)))
       (check-pred file-exists? v)))
 
-  (test-case "gtp-measure-data-dir"
+  (filesystem-test-case "gtp-measure-data-dir"
     (check-pred directory-exists? (gtp-measure-data-dir)))
 
   (test-case "update-config"
@@ -232,7 +239,7 @@
       (hash-update* (make-immutable-hash '((a . 1) (b . 2))) (make-immutable-hash '((b . 3))))
       (make-immutable-hash '((a . 1) (b . 3)))))
 
-  (test-case "directory<->config"
+  (filesystem-test-case "directory<->config"
     (check-equal?
       DEFAULT-CONFIG
       (let ()

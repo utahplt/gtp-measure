@@ -1,10 +1,6 @@
 #lang racket/base
 
-;; Stage 2: Measure performance
-
-;; ... given some description of a benchmark, start measuring performance
-;; ... parse a file of things to do, checkpoint the things done
-;; be generic?
+;; Measure the performance of a "task"
 
 (provide
   measure)

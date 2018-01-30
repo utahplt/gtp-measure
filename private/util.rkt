@@ -1,12 +1,14 @@
 #lang racket/base
 
-;; TODO move to gtp-util package
+;; TODO move some of this to a gtp-util package
 
 (provide
   copy-file*
   copy-racket-file*
 
   enumerate
+
+  filesystem-test-case
 
   gtp-measure-logger
   log-gtp-measure-fatal
@@ -17,10 +19,13 @@
 
 (require
   file/glob
+  rackunit
   (only-in racket/file
     delete-directory/files)
   (only-in racket/path
-    file-name-from-path))
+    file-name-from-path)
+  (for-syntax
+    racket/base))
 
 ;; =============================================================================
 
@@ -39,10 +44,20 @@
              [i (in-naturals)])
     (cons i x)))
 
+(define-syntax (filesystem-test-case stx)
+  (if (getenv "CI")
+    #'(void)
+    (with-syntax ([stuff (cdr (syntax-e stx))])
+      #'(test-case . stuff))))
+
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/runtime-path)
+  (require
+    rackunit
+    racket/runtime-path
+    (only-in racket/set set-count)
+    (only-in gtp-measure/private/parse racket-filenames))
 
   (define-runtime-path CWD ".")
 
@@ -50,19 +65,21 @@
   (define T-DIR (build-path TEST-DIR "sample-typed-untyped-target" "typed"))
   (define MY-DIR (build-path TEST-DIR "util-test"))
 
-  (test-case "copy-racket-file*"
+  (filesystem-test-case "copy-racket-file*"
+    (when (directory-exists? MY-DIR)
+      (delete-directory/files MY-DIR))
     (make-directory MY-DIR)
     (check-true
-      (zero?  (length (directory-list MY-DIR))))
+      (zero?  (set-count (racket-filenames MY-DIR))))
     (check-false
-      (zero? (length (directory-list T-DIR))))
+      (zero? (set-count (racket-filenames T-DIR))))
     (void
       (copy-racket-file* T-DIR MY-DIR))
     (check-false
-      (zero? (length (directory-list MY-DIR))))
+      (zero? (set-count (racket-filenames MY-DIR))))
     (check-equal?
-      (length (directory-list T-DIR))
-      (length (directory-list MY-DIR)))
+      (set-count (racket-filenames T-DIR))
+      (set-count (racket-filenames MY-DIR)))
     ;; cleanup
     (delete-directory/files MY-DIR))
 

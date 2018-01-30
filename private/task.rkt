@@ -1,5 +1,16 @@
 #lang racket/base
 
+;; Task = something we can benchmark,
+;;  maybe a file,
+;;  maybe a directory like for gradual typing performance,
+;;  maybe a manifest that lists other things.
+;;
+;; This file deals with:
+;; - data definition
+;; - serialization
+;; - checkpointing (divide a task into sub-tasks)
+;; - running (i.e. what does it mean to run a task)
+
 (require racket/contract)
 (provide
   (contract-out
@@ -380,7 +391,7 @@
     (check-regexp-match #rx"B" long-str)
     (check-regexp-match #rx"C" long-str))
 
-  (test-case "write-checklist"
+  (filesystem-test-case "write-checklist"
     (define tgts (list (cons (path->string F-TGT) kind:file)
                        (cons (path->string T-TGT) kind:typed-untyped)
                        (cons (path->string M-TGT) kind:manifest)))
@@ -421,14 +432,14 @@
       (path-remove-extension "foo/bar.rkt")
       (string->path "foo/bar")))
 
-  (test-case "write-targets"
+  (filesystem-test-case "write-targets"
     (define orig-tgts (list (cons (path->string F-TGT) kind:file)))
     (define filename (write-targets orig-tgts TEST-DIR))
     (define m-tgts (manifest->targets filename))
     (delete-file filename)
     (check-equal? orig-tgts m-tgts))
 
-  (test-case "fresh-uid"
+  (filesystem-test-case "fresh-uid"
     (define uid (format "~a" (fresh-uid)))
     (check-pred (lambda (x) (not (set-member? x uid)))
       (for*/list ([d (in-list (directory-list (gtp-measure-data-dir)))])
@@ -445,7 +456,7 @@
         (for/list ([p (in-list (list p0 p1))])
           (cons (path->string (normalize-path p)) kind:file)))))
 
-  (test-case "file->subtask*"
+  (filesystem-test-case "file->subtask*"
     (define test-file (build-path TEST-DIR "test-file->subtask.txt"))
     (when (file-exists? test-file)
       (delete-file test-file))
@@ -465,7 +476,7 @@
     (check-equal? (length out-str*) (config-ref config key:iterations))
     (check-true (andmap time-line? out-str*)))
 
-  (test-case "copy-configuration!"
+  (filesystem-test-case "copy-configuration!"
     (define configuration-dir (build-path TEST-DIR "sample-typed-untyped-configuration"))
     (unless (directory-exists? configuration-dir)
       (make-directory configuration-dir))
@@ -474,7 +485,7 @@
       (build-path configuration-dir "main.rkt"))
     (check-equal? (length (directory-list configuration-dir)) 2))
 
-  (test-case "typed-untyped->subtask*"
+  (filesystem-test-case "typed-untyped->subtask*"
     (define configuration-dir (build-path TEST-DIR "sample-typed-untyped-configuration"))
     (unless (directory-exists? configuration-dir)
       (make-directory configuration-dir))
@@ -514,7 +525,7 @@
       (check-equal? (length (cadr v)) (config-ref config key:iterations))
       (check-true (andmap time-line? (cadr v)))))
 
-  (test-case "make-file-timer"
+  (filesystem-test-case "make-file-timer"
     (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
     (when (file-exists? test-file)
       (delete-file test-file))
@@ -550,14 +561,14 @@
     (check-false
       (time-line? "yolo")))
 
-  (test-case "bin->rackets"
+  (filesystem-test-case "bin->rackets"
     (define racket-path (system-racket-path))
     (define racket-dir (path-only racket-path))
     (define-values [raco-bin racket-bin] (bin->rackets racket-dir))
     (check-equal? racket-bin (path->string racket-path))
     (check-equal? (path->string (file-name-from-path raco-bin)) "raco"))
 
-  (test-case "subtask-run!"
+  (filesystem-test-case "subtask-run!"
     (define message "everything a-ok")
     (define test-file (build-path TEST-DIR "subtask-run-test.txt"))
     (define (thunk)

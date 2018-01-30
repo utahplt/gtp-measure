@@ -1,5 +1,7 @@
 #lang racket/base
 
+;; Defines a #lang for declaraing files/directories to benchmark
+
 (provide
   (rename-out [-#%module-begin #%module-begin]))
 
