@@ -7,14 +7,21 @@
 ;; be generic?
 
 (provide
-  measure)
+  measure
+  gtp-measure-logger)
 
 (require
   gtp-measure/private/task)
 
 ;; =============================================================================
 
+(define-logger gtp-measure)
+
 (define (measure task)
+  (log-gtp-measure-info "begin measuring ~a" task)
+  (for ((st (in-subtasks task)))
+    (log-gtp-measure-info "begin measuring ~a" st)
+    (subtask-run! st))
   (void))
 
 ;; =============================================================================

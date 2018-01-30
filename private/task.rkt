@@ -7,11 +7,20 @@
       (-> (listof gtp-measure-target/c) (listof gtp-measure-task/c))]
 
     [init-task
-      (-> (listof gtp-measure-target/c) gtp-measure-config/c gtp-measure-task/c)]))
+      (-> (listof gtp-measure-target/c) gtp-measure-config/c gtp-measure-task/c)]
+
+    [in-subtasks
+      (-> gtp-measure-task/c any)]
+
+    [subtask-run!
+      (-> gtp-measure-subtask/c void?)]))
 
 (require
   gtp-measure/private/configure
   gtp-measure/private/parse
+  gtp-measure/private/util
+  file/glob
+  racket/file
   racket/path
   racket/runtime-path
   (only-in gtp-plot/util
@@ -25,6 +34,9 @@
 (define-runtime-path CWD ".")
 
 (define MANIFEST.RKT "manifest.rkt")
+(define CONFIG "configuration")
+(define BASE "base")
+(define BOTH "both")
 
 (define (task-print t port write?)
   (if write?
@@ -61,8 +73,7 @@
   (make-gtp-measure-task uid targets config))
 
 (define (make-task-directory uid)
-  (define task-dir
-    (build-path (gtp-measure-data-dir) (number->string uid)))
+  (define task-dir (format-task-directory uid))
   (if (directory-exists? task-dir)
     (raise-arguments-error 'init-task "(not/c directory-exists?)"
                            "directory" task-dir
@@ -70,6 +81,17 @@
     (begin
       (make-directory task-dir)
       task-dir)))
+
+(define (task->directory t)
+  (define task-dir (format-task-directory (gtp-measure-task-uid t)))
+  (if (directory-exists? task-dir)
+    task-dir
+    (raise-arguments-error 'task->directory "directory-exists?"
+                           "directory" task-dir
+                           "task" t)))
+
+(define (format-task-directory uid)
+  (build-path (gtp-measure-data-dir) (number->string uid)))
 
 (define (write-config config task-dir)
   (config->directory config task-dir))
@@ -113,6 +135,15 @@
   (define num-units (typed-untyped->num-units tu-path))
   (define exhaustive? (<= num-units (*MAX-UNITS*)))
   (define num-configurations (expt 2 num-units))
+  (void ;; setup config/base/both directories
+    (make-directory base-filename)
+    (make-directory (build-path base-filename CONFIG))
+    (let ([base (build-path tu-path BASE)])
+      (when (directory-exists? base)
+        (copy-directory/files base (build-path base-filename BASE))))
+    (let ([both (build-path tu-path BOTH)])
+      (when (directory-exists? both)
+        (copy-racket-file* both (build-path base-filename CONFIG)))))
   (if exhaustive?
     (let ([filename (path-add-extension base-filename #".in" #".")])
       (with-output-to-file filename #:exists 'error
@@ -143,10 +174,104 @@
         string<?
         #:key car))))
 
+;; -----------------------------------------------------------------------------
+
+(define (subtask-print st port write?)
+  (fprintf port "#<subtask:~a>" (gtp-measure-subtask-out st)))
+
+(struct gtp-measure-subtask [out thunk]
+  #:extra-constructor-name make-gtp-measure-subtask
+  #:methods gen:custom-write [(define write-proc subtask-print)])
+
+(define gtp-measure-subtask/c
+  gtp-measure-subtask?)
+
+(define (in-subtasks t)
+  (define current-targets
+    (box
+      (for/list ([tgt (in-list (gtp-measure-task-targets t))]
+                 [i (in-naturals)])
+        (cons i tgt))))
+  (define current-subtasks (box '()))
+  (define config (gtp-measure-task-config t))
+  (define task-dir (task->directory t))
+  (define (next-subtask!)
+    (cond
+     [(not (null? (unbox current-subtasks)))
+      (define subtasks (unbox current-subtasks))
+      (define st (car subtasks))
+      (set-box! current-subtasks (cdr subtasks))
+      st]
+     [(not (null? (unbox current-targets)))
+      (define targets (unbox current-targets))
+      (define-values [target-index tgt tgt-kind]
+        (let* ([index+x (car targets)]
+               [index (car index+x)]
+               [x (cdr index+x)])
+          (values index (car x) (cdr x))))
+      (set-box! current-targets (cdr targets))
+      (set-box! current-subtasks
+                (cond
+                 [(eq? tgt-kind kind:file)
+                  (define out-file
+                    (path-add-extension (build-path task-dir (format-target-tag tgt target-index)) #".out" #"."))
+                  (file->subtask* tgt out-file config)]
+                 [(eq? tgt-kind kind:typed-untyped)
+                  (define in-file*
+                    (glob (build-path task-dir (string-append (format-target-tag tgt target-index) "*.in"))))
+                  (define out-file*
+                    (for/list ([f (in-list in-file*)])
+                      (path-replace-extension f #".out")))
+                  (define config-dir
+                    (build-path task-dir (format-target-tag tgt target-index) CONFIG))
+                  (typed-untyped->subtask* tgt config-dir in-file* out-file* config)]
+                 [(eq? tgt-kind kind:manifest)
+                  (raise-user-error 'not-implemented)
+                  #;(manifest->subtask* tgt task-dir config)]
+                 [else
+                  (raise-arguments-error 'gtp-measure "invalid kind" "kind" tgt-kind)]))
+      (next-subtask!)]
+     [else
+      ;; no targets, no subtasks
+      #false]))
+  (in-producer next-subtask! #f))
+
+(define (file->subtask* in-file out-file config)
+  (define thunk
+    (make-file-timer in-file config))
+  (list (make-gtp-measure-subtask out-file thunk)))
+
+(define (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)
+  (for/list ([in-file (in-list in-file*)]
+             [out-file (in-list out-file*)])
+    (define (thunk)
+      ;; each line of in-file = configuration
+      ;; setup config, then `make-file-timer` to a good output location
+      ;; TODO
+      (error 'TODO))
+    (make-gtp-measure-subtask out-file thunk)))
+
+(define (manifest->subtask* dirname task-dir config)
+  (raise-user-error 'nope))
+
+(define (make-file-timer filename config [pre-out-port #false])
+  (lambda ()
+    (define out-port (or pre-out-port (current-output-port)))
+    ;; delete compiled files
+    ;; compile file
+    ;; run N times
+    ;; collect timings, one for each run, print to current output port
+    (error 'TODO)))
+
+(define (subtask-run! st)
+  (define run! (gtp-measure-subtask-thunk st))
+  (define outfile (gtp-measure-subtask-out st))
+  (with-output-to-file outfile #:exists 'error run!))
+
 ;; =============================================================================
 
 (module+ test
-  (require rackunit racket/set racket/path racket/file)
+  (require rackunit racket/set racket/path)
 
   (define TEST-DIR (simplify-path (build-path CWD "test")))
   (define F-TGT (build-path TEST-DIR "sample-file-target.rkt"))
@@ -175,12 +300,17 @@
       (write-checklist tgts config task-dir))
     ;; check modified state
     (let ([tu-path (build-path task-dir "1-sample-typed-untyped-target.in")]
+          [tu-dir (build-path task-dir "1-sample-typed-untyped-target")]
           [m-dir (build-path task-dir "2-sample-manifest-target")])
       (check-pred file-exists?
         tu-path)
       (check-equal?
         (file->lines tu-path)
         (for/list ((i (in-range 4))) (natural->bitstring i #:pad 2)))
+      (check-pred directory-exists?
+        tu-dir)
+      (check-pred directory-exists?
+        (build-path tu-dir CONFIG))
       (check-pred directory-exists?
         m-dir)
       (check-pred null?

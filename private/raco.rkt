@@ -71,6 +71,8 @@
   (define *targets* (box '()))
   (define (add-target! tgt type)
     (set-box! *targets* (cons (cons tgt type) (unbox *targets*))))
+  (set-config! key:start-time (current-inexact-milliseconds))
+  (set-config! key:argv (current-command-line-arguments))
   (command-line
     #:program "gtp-measure"
     #:once-each
