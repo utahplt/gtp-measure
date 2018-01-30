@@ -57,6 +57,10 @@
    [else
     #false]))
 
+(define (hash->immutable-hash h)
+  (for/hash (((k v) (in-hash h)))
+    (values k v)))
+
 ;; =============================================================================
 
 (module+ main
@@ -79,22 +83,23 @@
     ;; TODO add key for entering sampling mode? (if too many configs, do sampling ... 'max-exhaustive' ? ... could apply same idea to sampling, note if too large)
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
-    [("-tu" "--typed-untyped") tu-fname "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped tu-fname) kind:typed-untyped)]
+    [("-t" "--typed-untyped") tu-fname "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped tu-fname) kind:typed-untyped)]
     [("-m" "--manifest") manifest "target: manifest" (add-target! (assert-valid-manifest manifest) kind:manifest)]
-    #:args (other-targets)
-    (define all-targets
-      (reverse
-        (for/fold ([acc (unbox *targets*)])
-                  ([tgt (in-list other-targets)])
-          (cons (cons tgt (infer-target-type tgt)) acc))))
-    (define old-task*
-      (current-tasks/targets all-targets))
-    (cond
-      [(and (not (null? old-task*)) (resume-task? old-task*))
-       => measure]
-      [else
-       (define config (init-config cmdline-config))
-       (measure (init-task all-targets config))])))
+    #:args other-targets
+    (let ()
+      (define all-targets
+        (reverse
+          (for/fold ([acc (unbox *targets*)])
+                    ([tgt (in-list other-targets)])
+            (cons (cons tgt (infer-target-type tgt)) acc))))
+      (define old-task*
+        (current-tasks/targets all-targets))
+      (cond
+        [(and (not (null? old-task*)) (resume-task? old-task*))
+         => measure]
+        [else
+         (define config (init-config (hash->immutable-hash cmdline-config)))
+         (measure (init-task all-targets config))]))))
 
 ;; =============================================================================
 

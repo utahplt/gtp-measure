@@ -23,9 +23,9 @@
 
   (contract-out
     [config->directory
-      (-> gtp-measure-config/c directory-exists? void?)]
+      (-> gtp-measure-config/c (and/c path-string? directory-exists?) void?)]
     [directory->config
-      (-> directory-exists? gtp-measure-config/c)]
+      (-> (and/c path-string? directory-exists?) gtp-measure-config/c)]
     [init-config
      (->* [] [gtp-measure-config/c] gtp-measure-config/c)]))
 

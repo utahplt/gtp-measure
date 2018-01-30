@@ -67,7 +67,9 @@
     (raise-arguments-error 'init-task "(not/c directory-exists?)"
                            "directory" task-dir
                            "uid" uid)
-    (make-directory task-dir)))
+    (begin
+      (make-directory task-dir)
+      task-dir)))
 
 (define (write-config config task-dir)
   (config->directory config task-dir))
@@ -138,8 +140,8 @@
     (lambda (pre-targets)
       (sort
         (for/list ([t (in-list pre-targets)])
-          (cons (path->bytes (normalize-path (car t) cwd)) (cdr t)))
-        bytes<?
+          (cons (path->string (normalize-path (car t) cwd)) (cdr t)))
+        string<?
         #:key car))))
 
 ;; =============================================================================
@@ -217,10 +219,10 @@
           [p1 T-TGT])
       (check-equal?
         (normalize-targets (list (cons p0 kind:file)))
-        (list (cons (path->bytes (normalize-path p0)) kind:file)))
+        (list (cons (path->string (normalize-path p0)) kind:file)))
       (check-equal?
         (normalize-targets (list (cons p1 kind:file) (cons p0 kind:file)))
         (for/list ([p (in-list (list p0 p1))])
-          (cons (path->bytes (normalize-path p)) kind:file)))))
+          (cons (path->string (normalize-path p)) kind:file)))))
 
 )
