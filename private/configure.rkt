@@ -1,13 +1,6 @@
 #lang racket/base
 
-;; TODO add a serializable "sample-rate" with default (lambda (num-configs) (* 10 (log2 num-configs)))
-
-
 ;; Stage 1: Configure a job
-
-;; ... given some targets, get ready to start measuring performance
-;; ... write a file of things to do
-;; ... be generic?
 
 (require racket/contract)
 (provide
@@ -25,6 +18,8 @@
 
   gtp-measure-data-dir
 
+  system-racket-path
+
   (contract-out
     [config->directory
       (-> gtp-measure-config/c (and/c path-string? directory-exists?) void?)]
@@ -38,6 +33,8 @@
   (only-in racket/file
     make-parent-directory*
     file->value)
+  (only-in racket/path
+    path-only)
   (only-in basedir
     writable-data-dir
     writable-config-file)
@@ -49,6 +46,9 @@
 
 (define *config-spec* (box #f))
 (define *default-config* (box #f))
+
+(define (system-racket-path)
+  (find-executable-path (find-system-path 'exec-file)))
 
 (define (assert-initialized! . bx*)
   (for ((bx (in-list bx*)))
@@ -69,13 +69,15 @@
 
 (begin
   (define-gtp-config-format
-    [key:entry-point "main.rkt"  path-string?]
-    [key:bin                 #f  (or/c #f path-string?)]
-    [key:iterations           8  exact-positive-integer?]
-    [key:num-samples         10  exact-positive-integer?]
-    [key:jit-warmup           1  exact-nonnegative-integer?]
-    [key:start-time           0  real?]
-    [key:argv              '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)])
+    [key:entry-point "main.rkt" path-string?]
+    [key:bin
+      (path->string (path-only (system-racket-path)))
+      (or/c #f path-string?)]
+    [key:iterations    8 exact-positive-integer?]
+    [key:num-samples  10 exact-positive-integer?]
+    [key:jit-warmup    1  exact-nonnegative-integer?]
+    [key:start-time    0  real?]
+    [key:argv       '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)])
 
   (assert-initialized! *default-config* *config-spec*)
 

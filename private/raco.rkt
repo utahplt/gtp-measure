@@ -9,23 +9,30 @@
   gtp-measure/private/configure
   gtp-measure/private/parse
   gtp-measure/private/task
-  gtp-measure/private/measure)
+  gtp-measure/private/util
+  gtp-measure/private/measure
+  gtp-measure/private/summarize
+  (only-in racket/path
+    normalize-path))
 
 ;; =============================================================================
 
 (define (assert-valid-file str)
-  (if (valid-file-target? str)
-    str
+  (define p (normalize-path str))
+  (if (valid-file-target? p)
+    (path->string p)
     (raise-argument-error 'gtp-measure "valid-file-target?" str)))
 
 (define (assert-valid-typed-untyped str)
-  (if (valid-typed-untyped-target? str)
-    str
+  (define p (normalize-path str))
+  (if (valid-typed-untyped-target? p)
+    (path->string p)
     (raise-argument-error 'gtp-measure "valid-typed-untyped-target?" str)))
 
 (define (assert-valid-manifest str)
-  (if (valid-manifest-target? str)
-    str
+  (define p (normalize-path str))
+  (if (valid-manifest-target? p)
+    (path->string p)
     (raise-argument-error 'gtp-measure "valid-manifest-target?" str)))
 
 (define (infer-target-type str)
@@ -93,15 +100,19 @@
         (reverse
           (for/fold ([acc (unbox *targets*)])
                     ([tgt (in-list other-targets)])
-            (cons (cons tgt (infer-target-type tgt)) acc))))
+            (cons (cons (normalize-path tgt) (infer-target-type tgt)) acc))))
+      (log-gtp-measure-debug "resolved targets ~a" all-targets)
       (define old-task*
         (current-tasks/targets all-targets))
-      (cond
-        [(and (not (null? old-task*)) (resume-task? old-task*))
-         => measure]
-        [else
-         (define config (init-config (hash->immutable-hash cmdline-config)))
-         (measure (init-task all-targets config))]))))
+      (define new-task
+        (or
+          (and (not (null? old-task*))
+               (resume-task? old-task*))
+          (let ((config (init-config (hash->immutable-hash cmdline-config))))
+            (init-task all-targets config))))
+      (void
+        (measure new-task)
+        (summarize new-task)))))
 
 ;; =============================================================================
 

@@ -13,7 +13,10 @@
       (-> gtp-measure-task/c any)]
 
     [subtask-run!
-      (-> gtp-measure-subtask/c void?)]))
+      (-> gtp-measure-subtask/c void?)]
+
+    [task->directory
+      (-> gtp-measure-task/c path-string?)]))
 
 (require
   gtp-measure/private/configure
@@ -33,7 +36,11 @@
     port->string
     port->lines)
   (only-in gtp-plot/util
-    natural->bitstring))
+    natural->bitstring)
+  (only-in racket/sequence
+    sequence->list)
+  (only-in racket/pretty
+    pretty-format))
 
 ;; =============================================================================
 
@@ -54,8 +61,8 @@
     (fprintf port
              "Task ~a~n- targets : ~a~n- config : ~a~n"
              (gtp-measure-task-uid t)
-             (gtp-measure-task-targets t)
-             (gtp-measure-task-config t))
+             (pretty-format (gtp-measure-task-targets t))
+             (pretty-format (gtp-measure-task-config t)))
     (fprintf port "#<task:~a>" (gtp-measure-task-uid t))))
 
 (struct gtp-measure-task [uid targets config]
@@ -65,9 +72,6 @@
 (define gtp-measure-task/c
   gtp-measure-task?)
 
-(define gtp-measure-target/c
-  (cons/c path-string? gtp-measure-kind/c))
-
 (define (current-tasks/targets pre-targets)
   (define targets (normalize-targets pre-targets))
   ;; TODO implement!
@@ -75,6 +79,7 @@
 
 (define (init-task pre-targets config)
   (define uid (fresh-uid))
+  (log-gtp-measure-debug "creating task ~a" uid)
   (define targets (normalize-targets pre-targets))
   (define task-dir (make-task-directory uid))
   (void
@@ -127,7 +132,7 @@
        (define filename (build-path task-dir (format-target-tag ps i)))
        (write-typed-untyped-checklist ps filename config)]
       [(eq? kind kind:manifest)
-       (define new-targets (manifest->targets ps))
+       (define new-targets (manifest->targets (string->path ps)))
        (define new-task-dir (build-path task-dir (format-target-tag ps i)))
        (make-directory new-task-dir)
        (write-checklist new-targets config new-task-dir)]
@@ -174,7 +179,7 @@
               (displayln (natural->bitstring (random num-configurations) #:pad num-units)))))))))
 
 (define (fresh-uid)
-  (length (directory-list (gtp-measure-data-dir))))
+  (+ 1 (length (directory-list (gtp-measure-data-dir)))))
 
 (define normalize-targets
   (let ([cwd (normalize-path CWD)])
@@ -198,14 +203,14 @@
   gtp-measure-subtask?)
 
 (define (in-subtasks t)
-  (define current-targets
-    (box
-      (for/list ([tgt (in-list (gtp-measure-task-targets t))]
-                 [i (in-naturals)])
-        (cons i tgt))))
-  (define current-subtasks (box '()))
+  (define targets (enumerate (gtp-measure-task-targets t)))
   (define config (gtp-measure-task-config t))
   (define task-dir (task->directory t))
+  (in-subtasks/internal targets config task-dir))
+
+(define (in-subtasks/internal targets config task-dir)
+  (define current-targets (box targets))
+  (define current-subtasks (box '()))
   (define (next-subtask!)
     (cond
      [(not (null? (unbox current-subtasks)))
@@ -237,8 +242,10 @@
                     (build-path task-dir (format-target-tag tgt target-index) CONFIG))
                   (typed-untyped->subtask* tgt config-dir in-file* out-file* config)]
                  [(eq? tgt-kind kind:manifest)
-                  (raise-user-error 'not-implemented)
-                  #;(manifest->subtask* tgt task-dir config)]
+                  ;; TODO maybe this should be lazy too
+                  (define new-targets (enumerate (manifest->targets (string->path tgt))))
+                  (define new-task-dir (build-path task-dir (format-target-tag tgt target-index)))
+                  (sequence->list (in-subtasks/internal new-targets config new-task-dir))]
                  [else
                   (raise-arguments-error 'gtp-measure "invalid kind" "kind" tgt-kind)]))
       (next-subtask!)]
@@ -306,7 +313,8 @@
       " && ")))
   (lambda ([out-port (current-output-port)])
     (define-values [sub-in sub-out sub-pid sub-err sub-control]
-      (apply values (process cmd)))
+      (parameterize ([current-directory (path-only filename)])
+        (apply values (process cmd #:set-pwd? #true))))
     (log-gtp-measure-info "begin subprocess ~a" sub-pid)
     (define exit-code
       (let loop ()
@@ -341,7 +349,7 @@
       (define bin (build-path bin-dir str))
       (if (file-exists? bin)
         (path->string bin)
-        (raise-arguments-error 'gtp-measure (format "failed to find '~a' executable")
+        (raise-arguments-error 'gtp-measure (format "failed to find '~a' executable" str)
                                "directory" bin-dir))))
   (values (car bin*) (cadr bin*)))
 
@@ -361,9 +369,6 @@
   (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
 
-  (define (system-racket-path)
-    (find-executable-path (find-system-path 'exec-file)))
-
   (test-case "task-print"
     (define t (make-gtp-measure-task "A" "B" "C"))
     (define short-str (format "~a" t))
@@ -376,7 +381,9 @@
     (check-regexp-match #rx"C" long-str))
 
   (test-case "write-checklist"
-    (define tgts (list (cons F-TGT kind:file) (cons T-TGT kind:typed-untyped) (cons M-TGT kind:manifest)))
+    (define tgts (list (cons (path->string F-TGT) kind:file)
+                       (cons (path->string T-TGT) kind:typed-untyped)
+                       (cons (path->string M-TGT) kind:manifest)))
     (define config (init-config))
     (define task-dir (build-path TEST-DIR (format "test-dir-~a" (length (directory-list TEST-DIR)))))
     ;; modify the state of the filesystem

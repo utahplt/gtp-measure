@@ -20,11 +20,16 @@
 
   gtp-measure-target
 
-  manifest->targets
+  gtp-measure-target/c
 
   typed-untyped->num-units
 
   racket-filenames
+
+  (contract-out
+    [manifest->targets
+      (-> (or/c module-path? resolved-module-path? module-path-index?) (listof gtp-measure-target/c))])
+
 )
 
 (require
@@ -45,6 +50,9 @@
 
 (define gtp-measure-kind/c
   (or/c kind:typed-untyped kind:file kind:manifest))
+
+(define gtp-measure-target/c
+  (cons/c string? gtp-measure-kind/c))
 
 (define (valid-target? str)
   (or (and (valid-file-target? str) kind:file)

@@ -20,6 +20,7 @@
   (for ((st (in-subtasks task)))
     (log-gtp-measure-info "begin measuring ~a" st)
     (subtask-run! st))
+  (log-gtp-measure-info "end measuring ~a" task)
   (void))
 
 ;; =============================================================================
