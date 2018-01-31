@@ -46,7 +46,7 @@
   (only-in racket/port
     port->string
     port->lines)
-  (only-in gtp-plot/util
+  (only-in gtp-util
     natural->bitstring)
   (only-in racket/sequence
     sequence->list)
@@ -176,7 +176,7 @@
       (with-output-to-file filename #:exists 'error
         (lambda ()
           (for ((i (in-range num-configurations)))
-            (displayln (natural->bitstring i #:pad num-units))))))
+            (displayln (natural->bitstring i #:bits num-units))))))
     (let ([num-samples (config-ref config key:num-samples)]
           [sample-size (* 10 num-units)]) ;; TODO abstract the sample-size
       (for ([sample-id (in-range num-samples)])
@@ -187,7 +187,7 @@
         (with-output-to-file filename
           (lambda ()
             (for ((i (in-range sample-size)))
-              (displayln (natural->bitstring (random num-configurations) #:pad num-units)))))))))
+              (displayln (natural->bitstring (random num-configurations) #:bits num-units)))))))))
 
 (define (fresh-uid)
   (+ 1 (length (directory-list (gtp-measure-data-dir)))))
@@ -414,7 +414,7 @@
         tu-path)
       (check-equal?
         (file->lines tu-path)
-        (for/list ((i (in-range 4))) (natural->bitstring i #:pad 2)))
+        (for/list ((i (in-range 4))) (natural->bitstring i #:bits 2)))
       (check-pred directory-exists?
         tu-dir)
       (check-pred directory-exists?
@@ -496,7 +496,7 @@
       (make-directory configuration-dir))
     (define configuration*
       (for/list ([i (in-range 4)])
-        (natural->bitstring i #:pad 2)))
+        (natural->bitstring i #:bits 2)))
     (define in-file
       (let ([p (build-path TEST-DIR "sample-typed-untyped.in")])
         (with-output-to-file p

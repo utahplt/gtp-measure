@@ -17,6 +17,7 @@
 
 (require
   file/glob
+  gtp-util
   (only-in racket/file
     delete-directory/files)
   (only-in racket/path
@@ -26,19 +27,6 @@
 
 (define-logger gtp-measure)
 
-(define (copy-file* src dst [pattern "*.*"])
-  (for ([src-file (in-glob (build-path src pattern))])
-    (define src-name (file-name-from-path src-file))
-    (copy-file src-file (build-path dst src-name))))
-
-(define (copy-racket-file* src dst)
-  (copy-file* src dst "*.rkt"))
-
-(define (enumerate x*)
-  (for/list ([x (in-list x*)]
-             [i (in-naturals)])
-    (cons i x)))
-
 ;; =============================================================================
 
 (module+ test
@@ -46,16 +34,7 @@
 
   (require
     rackunit
-    racket/runtime-path
-    (only-in racket/set set-count)
-    (for-syntax racket/base)
-    (only-in gtp-measure/private/parse racket-filenames))
-
-  (define-runtime-path CWD ".")
-
-  (define TEST-DIR (build-path CWD "test"))
-  (define T-DIR (build-path TEST-DIR "sample-typed-untyped-target" "typed"))
-  (define MY-DIR (build-path TEST-DIR "util-test"))
+    (for-syntax racket/base))
 
   (define-syntax (filesystem-test-case stx)
     (if (getenv "CI")
@@ -63,32 +42,4 @@
       (with-syntax ([stuff (cdr (syntax-e stx))])
         #'(test-case . stuff))))
 
-  (filesystem-test-case "copy-racket-file*"
-    (when (directory-exists? MY-DIR)
-      (delete-directory/files MY-DIR))
-    (make-directory MY-DIR)
-    (check-true
-      (zero?  (set-count (racket-filenames MY-DIR))))
-    (check-false
-      (zero? (set-count (racket-filenames T-DIR))))
-    (void
-      (copy-racket-file* T-DIR MY-DIR))
-    (check-false
-      (zero? (set-count (racket-filenames MY-DIR))))
-    (check-equal?
-      (set-count (racket-filenames T-DIR))
-      (set-count (racket-filenames MY-DIR)))
-    ;; cleanup
-    (delete-directory/files MY-DIR))
-
-  (test-case "enumerate"
-    (check-equal?
-      (enumerate '())
-      '())
-    (check-equal?
-      (enumerate '(A))
-      '((0 . A)))
-    (check-equal?
-      (enumerate '(A B C))
-      '((0 . A) (1 . B) (2 . C))))
 )
