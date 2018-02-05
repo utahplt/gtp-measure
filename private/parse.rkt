@@ -22,7 +22,7 @@
 
   gtp-measure-target/c
 
-  typed-untyped->num-units
+  typed-untyped->num-components
 
   racket-filenames
 
@@ -84,7 +84,7 @@
   (for/set ([f (in-glob (build-path dir "*.rkt"))])
     (file-name-from-path f)))
 
-(define (typed-untyped->num-units tu-dir)
+(define (typed-untyped->num-components tu-dir)
   (set-count (racket-filenames (build-path tu-dir "typed"))))
 
 (define (valid-manifest-target? str)

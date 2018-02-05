@@ -12,7 +12,9 @@
   gtp-measure/private/summarize
   racket/cmdline
   (only-in racket/path
-    normalize-path))
+    normalize-path)
+  (only-in racket/port
+    with-input-from-string))
 
 ;; =============================================================================
 
@@ -35,6 +37,12 @@
   (if (valid-manifest-target? p)
     (path->string p)
     (raise-argument-error GTPM "valid-manifest-target?" str)))
+
+(define (read/ctc str ctc)
+  (define v (with-input-from-string str read))
+  (if (ctc v)
+    v
+    (raise-argument-error GTPM (object-name ctc) str)))
 
 (define (infer-target-type str)
   (or (valid-target? str)
@@ -81,24 +89,24 @@
   (command-line
     #:program "gtp-measure"
     #:argv argv
-    #:once-each
-    [("-i" "--iterations") iters "Num. iterations" (set-config! key:iterations iters)]
-    [("--bin") dir "Binaries directory" (set-config! key:bin dir)]
-    [("--entry-point") main "Name of file to run (for typed/untyped targets)" (set-config! key:entry-point main)]
-    ;;TODO;;[("-S" "--sample-size") ss "Sample size" (set-config! key:sample-size ss)]
-    [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples ns)]
-    [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup iters)]
-    ;; TODO add key for entering sampling mode? (if too many configs, do sampling ... 'max-exhaustive' ? ... could apply same idea to sampling, note if too large)
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
     [("-t" "--typed-untyped") dir "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped dir) kind:typed-untyped)]
     [("-m" "--manifest") manifest "target: manifest" (add-target! (assert-valid-manifest manifest) kind:manifest)]
+    #:once-each
+    [("-i" "--iterations") iters "Number of iterations" (set-config! key:iterations (read/ctc iters exact-positive-integer?))]
+    [("--bin") dir "Binaries directory" (set-config! key:bin dir)]
+    [("--entry-point") main "Name of file to run (for typed/untyped targets)" (set-config! key:entry-point main)]
+    [("-c" "--cutoff") N "Max. number of components to measure exhaustively (vs. by sampling)" (set-config! key:cutoff (read/ctc N exact-nonnegative-integer?))]
+    ;;TODO;;[("-S" "--sample-size") ss "Sample size" (set-config! key:sample-size ss)]
+    [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples (read/ctc ns exact-positive-integer?))]
+    [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-positive-integer?))]
     #:args other-targets
     (let ([all-targets
            (reverse
              (for/fold ([acc (unbox *targets*)])
                        ([tgt (in-list other-targets)])
-               (cons (cons (normalize-path tgt) (infer-target-type tgt)) acc)))])
+               (cons (cons (path->string (normalize-path tgt)) (infer-target-type tgt)) acc)))])
       (cond
         [(null? all-targets)
          (log-gtp-measure-warning "no targets specified") ;; TODO should be an error, but don't want to print during unit tests

@@ -55,9 +55,6 @@
 
 ;; =============================================================================
 
-;; TODO need ... a public API for this
-(define *MAX-UNITS* (make-parameter 12))
-
 (define-runtime-path CWD ".")
 
 (define MANIFEST.RKT "manifest.rkt")
@@ -159,9 +156,9 @@
   (path-replace-extension ps #""))
 
 (define (write-typed-untyped-checklist tu-path base-filename config)
-  (define num-units (typed-untyped->num-units tu-path))
-  (define exhaustive? (<= num-units (*MAX-UNITS*)))
-  (define num-configurations (expt 2 num-units))
+  (define num-components (typed-untyped->num-components tu-path))
+  (define exhaustive? (<= num-components (config-ref config key:cutoff)))
+  (define num-configurations (expt 2 num-components))
   (void ;; setup config/base/both directories
     (make-directory base-filename)
     (make-directory (build-path base-filename CONFIG))
@@ -176,9 +173,9 @@
       (with-output-to-file filename #:exists 'error
         (lambda ()
           (for ((i (in-range num-configurations)))
-            (displayln (natural->bitstring i #:bits num-units))))))
+            (displayln (natural->bitstring i #:bits num-components))))))
     (let ([num-samples (config-ref config key:num-samples)]
-          [sample-size (* 10 num-units)]) ;; TODO abstract the sample-size
+          [sample-size (* 10 num-components)]) ;; TODO abstract the sample-size
       (for ([sample-id (in-range num-samples)])
         (define filename
           (path-add-extension
@@ -187,7 +184,7 @@
         (with-output-to-file filename
           (lambda ()
             (for ((i (in-range sample-size)))
-              (displayln (natural->bitstring (random num-configurations) #:bits num-units)))))))))
+              (displayln (natural->bitstring (random num-configurations) #:bits num-components)))))))))
 
 (define (fresh-uid)
   (+ 1 (length (directory-list (gtp-measure-data-dir)))))

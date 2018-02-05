@@ -7,13 +7,14 @@
 
 (require racket/contract)
 (provide
-  key:entry-point
-  key:bin
-  key:iterations
-  key:num-samples
-  key:jit-warmup
-  key:start-time
   key:argv
+  key:bin
+  key:cutoff
+  key:entry-point
+  key:iterations
+  key:jit-warmup
+  key:num-samples
+  key:start-time
 
   config-ref
 
@@ -77,11 +78,12 @@
     [key:bin
       (path->string (path-only (system-racket-path)))
       (or/c #f path-string?)]
-    [key:iterations    8 exact-positive-integer?]
-    [key:num-samples  10 exact-positive-integer?]
-    [key:jit-warmup    1  exact-nonnegative-integer?]
-    [key:start-time    0  real?]
-    [key:argv       '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)])
+    [key:iterations     8  exact-positive-integer?]
+    [key:num-samples   10  exact-positive-integer?]
+    [key:jit-warmup     1  exact-nonnegative-integer?]
+    [key:start-time     0  real?]
+    [key:argv        '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)]
+    [key:cutoff         9  exact-nonnegative-integer?])
 
   (assert-initialized! *default-config* *config-spec*)
 
