@@ -10,32 +10,35 @@
   gtp-measure/private/util
   gtp-measure/private/measure
   gtp-measure/private/summarize
+  racket/cmdline
   (only-in racket/path
     normalize-path))
 
 ;; =============================================================================
 
+(define GTPM 'gtp-measure)
+
 (define (assert-valid-file str)
   (define p (normalize-path str))
   (if (valid-file-target? p)
     (path->string p)
-    (raise-argument-error 'gtp-measure "valid-file-target?" str)))
+    (raise-argument-error GTPM "valid-file-target?" str)))
 
 (define (assert-valid-typed-untyped str)
   (define p (normalize-path str))
   (if (valid-typed-untyped-target? p)
     (path->string p)
-    (raise-argument-error 'gtp-measure "valid-typed-untyped-target?" str)))
+    (raise-argument-error GTPM "valid-typed-untyped-target?" str)))
 
 (define (assert-valid-manifest str)
   (define p (normalize-path str))
   (if (valid-manifest-target? p)
     (path->string p)
-    (raise-argument-error 'gtp-measure "valid-manifest-target?" str)))
+    (raise-argument-error GTPM "valid-manifest-target?" str)))
 
 (define (infer-target-type str)
   (or (valid-target? str)
-      (raise-argument-error 'gtp-measure "valid-target?" str)))
+      (raise-argument-error GTPM "valid-target?" str)))
 
 (define (resume-task? task*)
   ;; TODO refactor for listof task (task*)
@@ -66,10 +69,7 @@
   (for/hash (((k v) (in-hash h)))
     (values k v)))
 
-;; =============================================================================
-
-(module+ main
-  (require racket/cmdline)
+(define (raco-parse argv)
   (define cmdline-config (make-hash))
   (define (set-config! k v)
     (hash-set! cmdline-config k v))
@@ -80,37 +80,50 @@
   (set-config! key:argv (current-command-line-arguments))
   (command-line
     #:program "gtp-measure"
+    #:argv argv
     #:once-each
-    [("-i" "--iterations") ni "Num. iterations" (set-config! key:iterations ni)]
-    [("--bin") bin "Binaries directory" (set-config! key:bin bin)]
-    [("--entry-point") m "Name of file to run (for typed/untyped targets)" (set-config! key:entry-point m)]
+    [("-i" "--iterations") iters "Num. iterations" (set-config! key:iterations iters)]
+    [("--bin") dir "Binaries directory" (set-config! key:bin dir)]
+    [("--entry-point") main "Name of file to run (for typed/untyped targets)" (set-config! key:entry-point main)]
     ;;TODO;;[("-S" "--sample-size") ss "Sample size" (set-config! key:sample-size ss)]
     [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples ns)]
-    [("--warmup") ww "JIT warmup iterations" (set-config! key:jit-warmup ww)]
+    [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup iters)]
     ;; TODO add key for entering sampling mode? (if too many configs, do sampling ... 'max-exhaustive' ? ... could apply same idea to sampling, note if too large)
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
-    [("-t" "--typed-untyped") tu-fname "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped tu-fname) kind:typed-untyped)]
+    [("-t" "--typed-untyped") dir "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped dir) kind:typed-untyped)]
     [("-m" "--manifest") manifest "target: manifest" (add-target! (assert-valid-manifest manifest) kind:manifest)]
     #:args other-targets
-    (let ()
-      (define all-targets
-        (reverse
-          (for/fold ([acc (unbox *targets*)])
-                    ([tgt (in-list other-targets)])
-            (cons (cons (normalize-path tgt) (infer-target-type tgt)) acc))))
-      (log-gtp-measure-debug "resolved targets ~a" all-targets)
-      (define old-task*
-        (current-tasks/targets all-targets))
-      (define new-task
-        (or
-          (and (not (null? old-task*))
-               (resume-task? old-task*))
-          (let ((config (init-config (hash->immutable-hash cmdline-config))))
-            (init-task all-targets config))))
-      (void
-        (measure new-task)
-        (summarize new-task)))))
+    (let ([all-targets
+           (reverse
+             (for/fold ([acc (unbox *targets*)])
+                       ([tgt (in-list other-targets)])
+               (cons (cons (normalize-path tgt) (infer-target-type tgt)) acc)))])
+      (cond
+        [(null? all-targets)
+         (log-gtp-measure-warning "no targets specified") ;; TODO should be an error, but don't want to print during unit tests
+         (raco-parse '#("--help"))]
+        [else
+         (log-gtp-measure-debug "resolved targets ~a" all-targets)
+         (raco-run all-targets (hash->immutable-hash cmdline-config))]))))
+
+(define (raco-run all-targets cmdline-config)
+  (define old-task*
+    (current-tasks/targets all-targets))
+  (define new-task
+    (or
+      (and (not (null? old-task*))
+           (resume-task? old-task*))
+      (let ((config (init-config cmdline-config)))
+        (init-task all-targets config))))
+  (void
+    (measure new-task)
+    (summarize new-task)))
+
+;; =============================================================================
+
+(module+ main
+  (raco-parse (current-command-line-arguments)))
 
 ;; =============================================================================
 
@@ -118,7 +131,15 @@
   (require
     rackunit
     racket/string
+    (only-in racket/port open-output-nowhere)
     (submod gtp-measure/private/util test))
+
+  (filesystem-test-case "raco-parse"
+    (check-not-exn
+      (lambda ()
+        (parameterize ([current-output-port (open-output-nowhere)]
+                       [current-error-port (open-output-nowhere)])
+          (raco-parse '#())))))
 
   (test-case "resume-task"
     (define-values [test->f-in test->f-out] (make-pipe))
@@ -149,4 +170,5 @@
     (check-equal? (parse-yes-or-no "NO") 'N)
     (check-equal? (parse-yes-or-no "idk") #false)
     (check-equal? (parse-yes-or-no "") #false))
+
 )
