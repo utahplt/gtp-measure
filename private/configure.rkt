@@ -14,6 +14,7 @@
   key:iterations
   key:jit-warmup
   key:num-samples
+  key:sample-factor
   key:start-time
 
   config-ref
@@ -78,12 +79,13 @@
     [key:bin
       (path->string (path-only (system-racket-path)))
       (or/c #f path-string?)]
-    [key:iterations     8  exact-positive-integer?]
-    [key:num-samples   10  exact-positive-integer?]
-    [key:jit-warmup     1  exact-nonnegative-integer?]
-    [key:start-time     0  real?]
-    [key:argv        '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)]
-    [key:cutoff         9  exact-nonnegative-integer?])
+    [key:iterations       8  exact-positive-integer?]
+    [key:num-samples     10  exact-positive-integer?]
+    [key:jit-warmup       1  exact-nonnegative-integer?]
+    [key:start-time       0  real?]
+    [key:argv          '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)]
+    [key:cutoff           9  exact-nonnegative-integer?]
+    [key:sample-factor   10  exact-positive-integer?])
 
   (assert-initialized! *default-config* *config-spec*)
 

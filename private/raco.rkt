@@ -98,7 +98,7 @@
     [("--bin") dir "Binaries directory" (set-config! key:bin dir)]
     [("--entry-point") main "Name of file to run (for typed/untyped targets)" (set-config! key:entry-point main)]
     [("-c" "--cutoff") N "Max. number of components to measure exhaustively (vs. by sampling)" (set-config! key:cutoff (read/ctc N exact-nonnegative-integer?))]
-    ;;TODO;;[("-S" "--sample-size") ss "Sample size" (set-config! key:sample-size ss)]
+    [("-S" "--sample-factor") sf "Determines sample size (sample-size = S * num-components)" (set-config! key:sample-factor (read/ctc sf exact-nonnegative-integer?))]
     [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples (read/ctc ns exact-positive-integer?))]
     [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-positive-integer?))]
     #:args other-targets

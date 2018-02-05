@@ -175,7 +175,7 @@
           (for ((i (in-range num-configurations)))
             (displayln (natural->bitstring i #:bits num-components))))))
     (let ([num-samples (config-ref config key:num-samples)]
-          [sample-size (* 10 num-components)]) ;; TODO abstract the sample-size
+          [sample-size (* (config-ref config key:sample-factor) num-components)])
       (for ([sample-id (in-range num-samples)])
         (define filename
           (path-add-extension
