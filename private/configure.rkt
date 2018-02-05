@@ -32,6 +32,7 @@
      (->* [] [gtp-measure-config/c] gtp-measure-config/c)]))
 
 (require
+  gtp-measure/private/util
   racket/set
   (only-in racket/file
     make-parent-directory*
@@ -97,14 +98,19 @@
     (let ([key->contract (for/hash ([kc (in-list CONFIG-SPEC)]) (values (car kc) (cdr kc)))])
       (lambda (h)
         (for/and ([(k v) (in-hash h)])
-          ((hash-ref key->contract k) v)))))
+          (define ctc (hash-ref key->contract k))
+          (or (ctc v)
+              (begin (log-gtp-measure-warning "key-value mismatch: key ~a value ~a contract ~a" k v ctc)
+                     #false))))))
 )
 
 (define gtp-measure-config/c
-  (and/c hash?
-         immutable?
-         has-gtp-config-keys?
-         has-gtp-config-values?))
+  (suggest/c
+    (and/c hash?
+           immutable?
+           has-gtp-config-keys?
+           has-gtp-config-values?)
+    "suggestion" "subscribe to the `gtp-measure` logger at the `'warning` level"))
 
 (define (config-ref cfg k)
   (hash-ref cfg k))
