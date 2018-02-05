@@ -24,6 +24,8 @@
 
   typed-untyped->num-components
 
+  typed-untyped->num-configurations
+
   racket-filenames
 
   (contract-out
@@ -86,6 +88,9 @@
 
 (define (typed-untyped->num-components tu-dir)
   (set-count (racket-filenames (build-path tu-dir "typed"))))
+
+(define (typed-untyped->num-configurations tu-dir)
+  (expt 2 (typed-untyped->num-components tu-dir)))
 
 (define (valid-manifest-target? str)
   (and (file-exists? str)
