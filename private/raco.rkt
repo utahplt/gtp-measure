@@ -84,11 +84,16 @@
   (define *targets* (box '()))
   (define (add-target! tgt type)
     (set-box! *targets* (cons (cons tgt type) (unbox *targets*))))
+  (define *mode* (box #f))
   (set-config! key:start-time (current-inexact-milliseconds))
   (set-config! key:argv (vector->immutable-vector (current-command-line-arguments)))
   (command-line
     #:program "gtp-measure"
     #:argv argv
+    #:once-any
+    ;[("--clean")]
+    [("--resume") "Resume a stopped task" (set-box! *mode* 'resume)]
+    [("--setup") "Setup task, but do not run" (set-box! *mode* 'setup)]
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
     [("-t" "--typed-untyped") dir "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped dir) kind:typed-untyped)]
@@ -102,32 +107,34 @@
     [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples (read/ctc ns exact-positive-integer?))]
     [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-positive-integer?))]
     #:args other-targets
-    (let ([all-targets
+    (let ([cmdline-config (hash->immutable-hash cmdline-config)]
+          [mode (unbox *mode*)])
+      (case mode
+        [(clean)
+         (raise-user-error 'gtp-measure "--clean not implemented")]
+        [(resume)
+         (raise-user-error 'gtp-measure "--resume not implemented")]
+        [else
+         (define all-targets
            (reverse
              (for/fold ([acc (unbox *targets*)])
                        ([tgt (in-list other-targets)])
-               (cons (cons (path->string (normalize-path tgt)) (infer-target-type tgt)) acc)))])
-      (cond
-        [(null? all-targets)
-         (log-gtp-measure-warning "no targets specified") ;; TODO should be an error, but don't want to print during unit tests
-         (raco-parse '#("--help"))]
-        [else
-         (log-gtp-measure-info "resolved targets ~a" all-targets)
-         (raco-run all-targets (hash->immutable-hash cmdline-config))]))))
-
-(define (raco-run all-targets cmdline-config)
-  (define old-task*
-    (current-tasks/targets all-targets))
-  (define new-task
-    (or
-      (and (not (null? old-task*))
-           (resume-task? old-task*))
-      (let ((config (init-config cmdline-config)))
-        (init-task all-targets config))))
-  (log-gtp-measure-info "prepared task ~a (~a programs to run)" new-task (task->num-unmeasured-programs new-task))
-  (void
-    (measure new-task)
-    (summarize new-task)))
+               (cons (cons (path->string (normalize-path tgt)) (infer-target-type tgt)) acc))))
+         (cond
+          [(null? all-targets)
+           (log-gtp-measure-warning "no targets specified") ;; TODO should be an error, but don't want to print during unit tests
+           (raco-parse '#("--help"))]
+          [else
+           (log-gtp-measure-info "resolved targets ~a" all-targets)
+           (define config (init-config cmdline-config))
+           (define new-task (init-task all-targets config))
+           (log-gtp-measure-info "prepared task ~a (~a programs to run)" new-task (task->num-unmeasured-programs new-task))
+           (if (eq? mode 'setup)
+             (printf "Setup complete ~s~n" new-task)
+             (void
+               (measure new-task)
+               (printf "Finished ~s~n" new-task)
+               (printf "Results in '*.out' files in directory ~a~n" (task->directory new-task))))])]))))
 
 ;; =============================================================================
 
