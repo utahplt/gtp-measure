@@ -27,7 +27,13 @@
       (-> gtp-measure-subtask/c void?)]
 
     [task->directory
-      (-> gtp-measure-task/c path-string?)]))
+      (-> gtp-measure-task/c path-string?)]
+
+    [task->total-programs
+      (-> gtp-measure-task/c exact-nonnegative-integer?)]
+
+    [task->num-unmeasured-programs
+      (-> gtp-measure-task/c exact-nonnegative-integer?)]))
 
 (require
   gtp-measure/private/configure
@@ -47,8 +53,10 @@
     port->string
     port->lines)
   (only-in gtp-util
+    bitstring?
     natural->bitstring)
   (only-in racket/sequence
+    sequence-map
     sequence->list)
   (only-in racket/pretty
     pretty-format))
@@ -207,16 +215,52 @@
   #:extra-constructor-name make-gtp-measure-subtask
   #:methods gen:custom-write [(define write-proc subtask-print)])
 
+(struct pre-subtask [])
+(struct pre-file-subtask pre-subtask [in-file out-file]
+  #:extra-constructor-name make-pre-file-subtask
+  #:transparent)
+(struct pre-typed-untyped-subtask pre-subtask [tu-dir config-dir in-file* out-file*]
+  #:extra-constructor-name make-pre-typed-untyped-subtask
+  #:transparent)
+
 (define gtp-measure-subtask/c
   gtp-measure-subtask?)
 
-(define (in-subtasks t)
-  (define targets (enumerate (gtp-measure-task-targets t)))
-  (define config (gtp-measure-task-config t))
-  (define task-dir (task->directory t))
-  (in-subtasks/internal targets config task-dir))
+(define (task->total-programs t)
+  (task->count-programs t #false))
 
-(define (in-subtasks/internal targets config task-dir)
+(define (task->num-unmeasured-programs t)
+  (task->count-programs t #true))
+
+(define (task->count-programs t skip-finished?)
+  (for/sum ([pst (in-pre-subtasks t)])
+    (cond
+      [(pre-file-subtask? pst)
+       (if (and skip-finished? (file-exists? (pre-file-subtask-in-file pst)))
+         0
+         1)]
+      [(pre-typed-untyped-subtask? pst)
+       (for/sum ([in-file (in-list (pre-typed-untyped-subtask-in-file* pst))]
+                 [out-file (in-list (pre-typed-untyped-subtask-out-file* pst))])
+         (if (and skip-finished? (file-exists? out-file))
+           0
+           (count-configurations in-file)))]
+      [else
+       (raise-arguments-error 'task->count-programs "undefined for subtask" "subtask" pst "original task" t)])))
+
+(define (in-subtasks t)
+  ;; TODO better to be lazy
+  (define config (gtp-measure-task-config t))
+  (for*/list ([pst (in-pre-subtasks t)]
+              [st (in-list (pre-subtask->subtask* pst config))])
+    st))
+
+(define (in-pre-subtasks t)
+  (define targets (enumerate (gtp-measure-task-targets t)))
+  (define task-dir (task->directory t))
+  (pre-subtasks/internal targets task-dir))
+
+(define (pre-subtasks/internal targets task-dir)
   (define current-targets (box targets))
   (define current-subtasks (box '()))
   (define (next-subtask!)
@@ -237,9 +281,8 @@
       (set-box! current-subtasks
                 (cond
                  [(eq? tgt-kind kind:file)
-                  (define out-file
-                    (path-add-extension (build-path task-dir (format-target-tag tgt target-index)) #".out" #"."))
-                  (file->subtask* tgt out-file config)]
+                  (define out-file (file->outfile task-dir tgt target-index))
+                  (list (make-pre-file-subtask tgt out-file))]
                  [(eq? tgt-kind kind:typed-untyped)
                   (define in-file*
                     (glob (build-path task-dir (string-append (format-target-tag tgt target-index) "*.in"))))
@@ -248,12 +291,12 @@
                       (path-replace-extension f #".out")))
                   (define config-dir
                     (build-path task-dir (format-target-tag tgt target-index) CONFIG))
-                  (typed-untyped->subtask* tgt config-dir in-file* out-file* config)]
+                  (list (make-pre-typed-untyped-subtask tgt config-dir in-file* out-file*))]
                  [(eq? tgt-kind kind:manifest)
-                  ;; TODO maybe this should be lazy too
+                  ;; TODO this should be lazy too
                   (define new-targets (enumerate (manifest->targets (string->path tgt))))
                   (define new-task-dir (build-path task-dir (format-target-tag tgt target-index)))
-                  (sequence->list (in-subtasks/internal new-targets config new-task-dir))]
+                  (sequence->list (pre-subtasks/internal new-targets new-task-dir))]
                  [else
                   (raise-arguments-error 'gtp-measure "invalid kind" "kind" tgt-kind)]))
       (next-subtask!)]
@@ -261,6 +304,25 @@
       ;; no targets, no subtasks
       #false]))
   (in-producer next-subtask! #f))
+
+(define (file->outfile task-dir tgt target-index)
+  (path-add-extension
+    (build-path task-dir (format-target-tag tgt target-index)) #".out" #"."))
+
+(define (pre-subtask->subtask* st config)
+  (cond
+    [(pre-file-subtask? st)
+     (define in-file (pre-file-subtask-in-file st))
+     (define out-file (pre-file-subtask-out-file st))
+     (file->subtask* in-file out-file config)]
+    [(pre-typed-untyped-subtask? st)
+     (define tu-dir (pre-typed-untyped-subtask-tu-dir st))
+     (define config-dir (pre-typed-untyped-subtask-config-dir st))
+     (define in-file* (pre-typed-untyped-subtask-in-file* st))
+     (define out-file* (pre-typed-untyped-subtask-out-file* st))
+     (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)]
+    [else
+     (raise-argument-error 'pre-subtask->subtask "pre-subtask?" 1 config st)]))
 
 (define (file->subtask* in-file out-file config)
   (define thunk
@@ -365,6 +427,12 @@
   (define run! (gtp-measure-subtask-thunk st))
   (define outfile (gtp-measure-subtask-out st))
   (with-output-to-file outfile #:exists 'error run!))
+
+(define (count-configurations filename)
+  (with-input-from-file filename
+    (lambda ()
+      (for/sum ((ln (in-lines)))
+        (if (bitstring? ln) 1 0)))))
 
 ;; =============================================================================
 
@@ -585,5 +653,39 @@
           (file->string test-file)
           (delete-file test-file))))
     (check-equal? out-str message))
+
+  (filesystem-test-case "task->count-programs"
+    (define tgts (list (cons (path->string F-TGT) kind:file)
+                       (cons (path->string T-TGT) kind:typed-untyped)
+                       (cons (path->string M-TGT) kind:manifest)))
+    (define config (init-config))
+    ;; modify the state of the filesystem
+    (define-values [actual-total actual-unmeasured]
+      (let ()
+        (define t (init-task tgts config))
+        (define task-dir (task->directory t))
+        (with-output-to-file (file->outfile task-dir F-TGT 0)
+          (lambda () (writeln "fake-runtime")))
+        (define total (task->total-programs t))
+        (define unmeasured (task->num-unmeasured-programs t))
+        (delete-directory/files task-dir)
+        (values total unmeasured)))
+    (check-equal? actual-total (+ 1
+                                  (typed-untyped->num-configurations T-TGT)
+                                  1))
+    (check-equal? actual-unmeasured
+                  ;; TODO why -2 ?
+                  (- actual-total 2)))
+
+  (filesystem-test-case "count-configurations"
+    (define CONFIGS '("01" "10"))
+    (define actual
+      (let ()
+        (define tmpfile (build-path TEST-DIR "count-configurations.rktd"))
+        (with-output-to-file tmpfile #:exists 'replace
+          (lambda () (for-each displayln CONFIGS)))
+        (begin0 (count-configurations tmpfile)
+                (delete-file tmpfile))))
+    (check-equal? actual (length CONFIGS)))
 
 )

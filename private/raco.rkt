@@ -112,7 +112,7 @@
          (log-gtp-measure-warning "no targets specified") ;; TODO should be an error, but don't want to print during unit tests
          (raco-parse '#("--help"))]
         [else
-         (log-gtp-measure-debug "resolved targets ~a" all-targets)
+         (log-gtp-measure-info "resolved targets ~a" all-targets)
          (raco-run all-targets (hash->immutable-hash cmdline-config))]))))
 
 (define (raco-run all-targets cmdline-config)
@@ -124,6 +124,7 @@
            (resume-task? old-task*))
       (let ((config (init-config cmdline-config)))
         (init-task all-targets config))))
+  (log-gtp-measure-info "prepared task ~a (~a programs to run)" new-task (task->num-unmeasured-programs new-task))
   (void
     (measure new-task)
     (summarize new-task)))
