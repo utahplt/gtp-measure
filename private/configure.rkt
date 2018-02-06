@@ -17,6 +17,8 @@
   key:sample-factor
   key:start-time
 
+  CONFIG.RKTD
+
   config-ref
 
   gtp-measure-config/c
@@ -83,7 +85,7 @@
     [key:num-samples     10  exact-positive-integer?]
     [key:jit-warmup       1  exact-nonnegative-integer?]
     [key:start-time       0  real?]
-    [key:argv          '#()  (vectorof string? #:immutable #true #:flat? #true #:eager #true)]
+    [key:argv           '()  (listof string?)]
     [key:cutoff           9  exact-nonnegative-integer?]
     [key:sample-factor   10  exact-positive-integer?])
 
