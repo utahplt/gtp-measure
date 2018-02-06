@@ -13,12 +13,18 @@
 
 (require racket/contract)
 (provide
+
+  gtp-measure-task-directory?
+
   (contract-out
     [current-tasks/targets
       (-> (listof gtp-measure-target/c) (listof gtp-measure-task/c))]
 
     [init-task
       (-> (listof gtp-measure-target/c) gtp-measure-config/c gtp-measure-task/c)]
+
+    [resume-task
+      (-> gtp-measure-task-directory? gtp-measure-task/c)]
 
     [in-subtasks
       (-> gtp-measure-task/c any)]
@@ -88,6 +94,13 @@
 (define gtp-measure-task/c
   gtp-measure-task?)
 
+(define (gtp-measure-task-directory? x)
+  (and (path-string? x)
+       (directory-exists? x)
+       (file-exists? (build-path x MANIFEST.RKT))
+       (file-exists? (build-path x CONFIG.RKTD))
+       (equal? (normalize-path (path-only x)) (gtp-measure-data-dir))))
+
 (define (current-tasks/targets pre-targets)
   (define targets (normalize-targets pre-targets))
   ;; TODO implement!
@@ -103,6 +116,19 @@
     (write-targets targets task-dir)
     (write-checklist targets config task-dir))
   (make-gtp-measure-task uid targets config))
+
+(define (resume-task dir)
+  (define uid (task-directory->uid dir))
+  (define targets (task-directory->targets dir))
+  (define config (directory->config dir))
+  (make-gtp-measure-task uid targets config))
+
+(define (task-directory->uid dir)
+  (define p (file-name-from-path dir))
+  (string->number (path->string p)))
+
+(define (task-directory->targets dir)
+  (manifest->targets (build-path dir MANIFEST.RKT)))
 
 (define (make-task-directory uid)
   (define task-dir (format-task-directory uid))
@@ -256,9 +282,9 @@
     st))
 
 (define (in-pre-subtasks t)
-  (define targets (enumerate (gtp-measure-task-targets t)))
+  (define e-targets (enumerate (gtp-measure-task-targets t)))
   (define task-dir (task->directory t))
-  (pre-subtasks/internal targets task-dir))
+  (pre-subtasks/internal e-targets task-dir))
 
 (define (pre-subtasks/internal targets task-dir)
   (define current-targets (box targets))
@@ -314,12 +340,18 @@
     [(pre-file-subtask? st)
      (define in-file (pre-file-subtask-in-file st))
      (define out-file (pre-file-subtask-out-file st))
-     (file->subtask* in-file out-file config)]
+     (if (file-exists? out-file)
+       '()
+       (file->subtask* in-file out-file config))]
     [(pre-typed-untyped-subtask? st)
      (define tu-dir (pre-typed-untyped-subtask-tu-dir st))
      (define config-dir (pre-typed-untyped-subtask-config-dir st))
-     (define in-file* (pre-typed-untyped-subtask-in-file* st))
-     (define out-file* (pre-typed-untyped-subtask-out-file* st))
+     (define-values [in-file* out-file*]
+       (for/lists (_1 _2)
+                  ([in-file (in-list (pre-typed-untyped-subtask-in-file* st))]
+                   [out-file (in-list (pre-typed-untyped-subtask-out-file* st))]
+                   #:when (not (file-exists? out-file)))
+         (values in-file out-file)))
      (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)]
     [else
      (raise-argument-error 'pre-subtask->subtask "pre-subtask?" 1 config st)]))
@@ -449,6 +481,8 @@
   (define T-TGT (build-path TEST-DIR "sample-typed-untyped-target"))
   (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
+  (define SAMPLE-TASK (build-path TEST-DIR "sample-task"))
+  (define TASK-24 (build-path SAMPLE-TASK "24"))
 
   (test-case "task-print"
     (define t (make-gtp-measure-task "A" "B" "C"))
@@ -688,4 +722,22 @@
                 (delete-file tmpfile))))
     (check-equal? actual (length CONFIGS)))
 
+  (test-case "task-directory->uid"
+    (check-equal? (task-directory->uid (build-path "1" "2")) 2)
+    (check-equal? (task-directory->uid TASK-24) 24))
+
+  (test-case "task-directory->targets"
+    (let ([tgts (task-directory->targets TASK-24)])
+      (check-equal? (length tgts) 1)))
+
+  (test-case "resume-task"
+    (let* ([t (resume-task TASK-24)]
+           [uid (gtp-measure-task-uid t)]
+           [tgts (gtp-measure-task-targets t)]
+           [config (gtp-measure-task-config t)]
+           [st* (for*/list ([pst (pre-subtasks/internal (enumerate tgts) TASK-24)]
+                            [st (in-list (pre-subtask->subtask* pst config))])
+                  st)])
+      (check-equal? uid 24)
+      (check-equal? (length st*) 1)))
 )

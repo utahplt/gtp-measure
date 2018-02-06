@@ -9,7 +9,6 @@
   gtp-measure/private/task
   gtp-measure/private/util
   gtp-measure/private/measure
-  gtp-measure/private/summarize
   racket/cmdline
   (only-in racket/path
     normalize-path)
@@ -86,13 +85,13 @@
     (set-box! *targets* (cons (cons tgt type) (unbox *targets*))))
   (define *mode* (box #f))
   (set-config! key:start-time (current-inexact-milliseconds))
-  (set-config! key:argv (vector->immutable-vector (current-command-line-arguments)))
+  (set-config! key:argv (vector->list (current-command-line-arguments)))
   (command-line
     #:program "gtp-measure"
     #:argv argv
     #:once-any
     ;[("--clean")]
-    [("--resume") "Resume a stopped task" (set-box! *mode* 'resume)]
+    [("--resume") task-dir "Resume a stopped task" (set-box! *mode* (cons 'resume task-dir))]
     [("--setup") "Setup task, but do not run" (set-box! *mode* 'setup)]
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
@@ -109,12 +108,23 @@
     #:args other-targets
     (let ([cmdline-config (hash->immutable-hash cmdline-config)]
           [mode (unbox *mode*)])
-      (case mode
-        [(clean)
+      (cond
+        [(eq? mode 'clean)
          (raise-user-error 'gtp-measure "--clean not implemented")]
-        [(resume)
-         (raise-user-error 'gtp-measure "--resume not implemented")]
-        [else
+        [(and (pair? mode) (eq? 'resume (car mode)))
+         (define dir (cdr mode))
+         (unless (gtp-measure-task-directory? dir)
+           (raise-arguments-error GTPM "gtp-measure-task-directory?" "--resume" dir))
+         (unless (and (null? other-targets)
+                      (null? (unbox *targets*)))
+           (log-gtp-measure-warning "ignoring command-line targets ~a" (append other-targets (unbox *targets*))))
+         (define old-task (resume-task dir))
+         ;; TODO this code is very similar to the "normal" case below
+         (log-gtp-measure-info "prepared task ~a (~a programs to run)" old-task (task->num-unmeasured-programs old-task))
+         (void
+           (measure old-task)
+           (summarize-results old-task))]
+        [(or (eq? mode 'setup) (eq? mode #f))
          (define all-targets
            (reverse
              (for/fold ([acc (unbox *targets*)])
@@ -133,8 +143,14 @@
              (printf "Setup complete ~s~n" new-task)
              (void
                (measure new-task)
-               (printf "Finished ~s~n" new-task)
-               (printf "Results in '*.out' files in directory ~a~n" (task->directory new-task))))])]))))
+               (summarize-results new-task)))])]
+        [else
+         (raise-arguments-error GTPM "unrecognized mode" "mode" mode)]))))
+
+(define (summarize-results t)
+  (printf "Finished ~s~n" t)
+  (printf "Results in '*.out' files in directory ~a~n" (task->directory t))
+  (void))
 
 ;; =============================================================================
 
