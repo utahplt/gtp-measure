@@ -24,10 +24,10 @@ To start benchmarking `<TARGET>` with the default settings,
 $ raco gtp-measure <TARGET>
 ```
 
-To view all currently-running benchmarks:
+To resume a previously-stopped task:
 
 ```
-$ raco gtp-measure --status
+$ raco gtp-measure --resume <DATA-DIR>
 ```
 
 For more:
