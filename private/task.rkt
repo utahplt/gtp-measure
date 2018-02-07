@@ -567,8 +567,7 @@
       (delete-file test-file))
     (define config
       (init-config (make-immutable-hash
-                     (list (cons key:bin (path-only (system-racket-path)))
-                           (cons key:iterations 2)
+                     (list (cons key:iterations 2)
                            (cons key:jit-warmup 2)))))
     (define st* (file->subtask* F-TGT test-file config))
     (check-equal? (length st*) 1)
@@ -608,8 +607,7 @@
       (build-path TEST-DIR "sample-typed-untyped.out"))
     (define config
       (init-config (make-immutable-hash
-                     (list (cons key:bin (path-only (system-racket-path)))
-                           (cons key:iterations 2)
+                     (list (cons key:iterations 2)
                            (cons key:jit-warmup 0)))))
     (define st* (typed-untyped->subtask* T-TGT configuration-dir (list in-file) (list out-file) config))
     (check-equal? (length st*) 1)
@@ -636,7 +634,7 @@
       (delete-file test-file))
     (define config
       (init-config (make-immutable-hash
-                     (list (cons key:bin (path-only (system-racket-path)))
+                     (list (cons key:bin (path->string (path-only (system-racket-path))))
                            (cons key:iterations 2)
                            (cons key:jit-warmup 2)))))
     (define thunk (make-file-timer F-TGT config))
@@ -727,11 +725,13 @@
     (check-equal? (task-directory->uid (build-path "1" "2")) 2)
     (check-equal? (task-directory->uid TASK-24) 24))
 
-  (test-case "task-directory->targets"
+  ;; TODO should be OK to run on travis ... maybe https://github.com/racket/racket/pull/1947
+  (filesystem-test-case "task-directory->targets"
     (let ([tgts (task-directory->targets TASK-24)])
       (check-equal? (length tgts) 1)))
 
-  (test-case "resume-task"
+  ;; TODO should be OK to run on travis ... maybe https://github.com/racket/racket/pull/1947
+  (filesystem-test-case "resume-task"
     (let* ([t (resume-task TASK-24)]
            [uid (gtp-measure-task-uid t)]
            [tgts (gtp-measure-task-targets t)]

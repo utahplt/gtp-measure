@@ -194,7 +194,7 @@
     (check-pred has-gtp-config-values?
       (make-immutable-hash))
     (check-pred has-gtp-config-values?
-      (make-immutable-hash (list (cons key:bin #f))))
+      (make-immutable-hash (list (cons key:argv '()))))
     (check-pred has-gtp-config-values?
       DEFAULT-CONFIG)
 
