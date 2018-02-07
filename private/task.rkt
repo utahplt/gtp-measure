@@ -48,6 +48,7 @@
   file/glob
   racket/file
   racket/path
+  racket/set
   racket/runtime-path
   (only-in racket/system
     process)
@@ -60,7 +61,8 @@
     port->lines)
   (only-in gtp-util
     bitstring?
-    natural->bitstring)
+    natural->bitstring
+    filename-sort)
   (only-in racket/sequence
     sequence-map
     sequence->list)
@@ -381,8 +383,8 @@
 (define (copy-configuration! configuration-id src-dir dst-dir)
   (define t-dir (build-path src-dir TYPED))
   (define u-dir (build-path src-dir UNTYPED))
-  (for ([t-file (racket-filenames t-dir)]
-        [u-file (racket-filenames u-dir)]
+  (for ([t-file (filename-sort (set->list (racket-filenames t-dir)))]
+        [u-file (filename-sort (set->list (racket-filenames u-dir)))]
         [bit (in-string configuration-id)])
     (unless (equal? t-file u-file)
       (raise-arguments-error 'copy-configuration! "mis-matched filenames"
@@ -471,7 +473,6 @@
 (module+ test
   (require
     rackunit
-    racket/set
     racket/path
     (submod gtp-measure/private/util test)
     (only-in racket/port with-input-from-string))

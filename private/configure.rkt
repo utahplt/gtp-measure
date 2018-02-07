@@ -80,7 +80,7 @@
     [key:entry-point "main.rkt" path-string?]
     [key:bin
       (path->string (path-only (system-racket-path)))
-      (or/c #f path-string?)]
+      (and/c string? directory-exists?)]
     [key:iterations       8  exact-positive-integer?]
     [key:num-samples     10  exact-positive-integer?]
     [key:jit-warmup       1  exact-nonnegative-integer?]
@@ -164,6 +164,9 @@
     (hash-set acc k v)))
 
 ;; =============================================================================
+
+(module* for-doc #f
+  (provide DEFAULT-CONFIG))
 
 (module+ test
   (require
