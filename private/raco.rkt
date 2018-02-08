@@ -41,7 +41,7 @@
   (define v (with-input-from-string str read))
   (if (ctc v)
     v
-    (raise-argument-error GTPM (object-name ctc) str)))
+    (raise-argument-error GTPM (format "~a" (object-name ctc)) str)))
 
 (define (infer-target-type str)
   (or (valid-target? str)
@@ -104,7 +104,7 @@
     [("-c" "--cutoff") N "Max. number of components to measure exhaustively (vs. by sampling)" (set-config! key:cutoff (read/ctc N exact-nonnegative-integer?))]
     [("-S" "--sample-factor") sf "Determines sample size (sample-size = S * num-components)" (set-config! key:sample-factor (read/ctc sf exact-nonnegative-integer?))]
     [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples (read/ctc ns exact-positive-integer?))]
-    [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-positive-integer?))]
+    [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-nonnegative-integer?))]
     #:args other-targets
     (let ([cmdline-config (hash->immutable-hash cmdline-config)]
           [mode (unbox *mode*)])
