@@ -55,7 +55,8 @@
   (only-in racket/list
     make-list)
   (only-in racket/string
-    string-join)
+    string-join
+    string-replace)
   (only-in racket/port
     port->string
     port->lines)
@@ -440,7 +441,9 @@
       (void)]
      [else
       (log-gtp-measure-error "subprocess ~a terminated with exit code ~a" sub-pid exit-code)
-      (log-gtp-measure-error (port->string sub-err))
+      (define sub-err-str (port->string sub-err))
+      (displayln (string-replace sub-err-str "\n" " ") out-port)
+      (log-gtp-measure-error sub-err-str)
       (void)])
     (close-output-port sub-out)
     (close-input-port sub-in)
