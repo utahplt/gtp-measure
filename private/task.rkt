@@ -371,6 +371,7 @@
       (with-input-from-file in-file
         (lambda ()
           (for ([configuration-id (in-lines)])
+            (delete-compiled! tu-dir)
             (copy-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
             (void
@@ -379,6 +380,10 @@
               (writeln (list configuration-id (port->lines configuration-in)) out-port)
               (close-input-port configuration-in))))))
     (make-gtp-measure-subtask out-file thunk)))
+
+(define (delete-compiled! dir)
+  (define compiled (build-path dir "compiled"))
+  (delete-directory/files compiled #:must-exist? #f))
 
 (define (copy-configuration! configuration-id src-dir dst-dir)
   (define t-dir (build-path src-dir TYPED))
