@@ -384,6 +384,7 @@
 
 (define (delete-compiled! dir)
   (define compiled (build-path dir "compiled"))
+  (log-gtp-measure-debug "deleting zo folder ~a" compiled)
   (delete-directory/files compiled #:must-exist? #f))
 
 (define (copy-configuration! configuration-id src-dir dst-dir)
@@ -619,14 +620,21 @@
                            (cons key:jit-warmup 0)))))
     (define st* (typed-untyped->subtask* T-TGT configuration-dir (list in-file) (list out-file) config))
     (check-equal? (length st*) 1)
-    (define out-str*
-      (begin (subtask-run! (car st*))
-             (begin0
-               (file->lines out-file)
-               (delete-directory/files configuration-dir)
-               (delete-file in-file)
-               (delete-file out-file))))
+    (define-values [log-hash out-str*]
+      (let ([inbox (force/gtp-measure (lambda () (subtask-run! (car st*))) #:level 'debug)])
+        (values inbox
+                (begin0
+                  (file->lines out-file)
+                  (delete-directory/files configuration-dir)
+                  (delete-file in-file)
+                  (delete-file out-file)))))
     (check-equal? (length out-str*) 4)
+    (check-equal?
+      (for/sum ([msg (in-list (hash-ref log-hash 'debug))]
+                #:when (regexp-match? #rx"deleting zo folder" msg))
+        1)
+      (length out-str*)
+      "missing evidence that 'zo' files deleted between configurations")
     (for ((c (in-list configuration*))
           (str (in-list out-str*)))
       (define v
