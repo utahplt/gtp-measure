@@ -372,7 +372,6 @@
       (with-input-from-file in-file
         (lambda ()
           (for ([configuration-id (in-lines)])
-            (delete-compiled! tu-dir)
             (copy-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
             (void
@@ -423,8 +422,10 @@
         (make-list iterations run-cmd))
       " && ")))
   (lambda ([out-port (current-output-port)])
+    (define file-dir (path-only filename))
+    (delete-compiled! file-dir)
     (define-values [sub-in sub-out sub-pid sub-err sub-control]
-      (parameterize ([current-directory (path-only filename)])
+      (parameterize ([current-directory file-dir])
         (apply values (process cmd #:set-pwd? #true))))
     (log-gtp-measure-info "begin subprocess ~a" sub-pid)
     (define exit-code
