@@ -82,6 +82,9 @@
 (define TYPED "typed")
 (define UNTYPED "untyped")
 
+(define INPUT-EXTENSION #".in")
+(define OUTPUT-EXTENSION #".out")
+
 (define (task-print t port write?)
   (if write?
     (fprintf port
@@ -198,7 +201,7 @@
                               "targets" targets)])))
 
 (define (format-target-tag str i)
-  (format "~a-~a" i (path->string (path-remove-extension (file-name-from-path str)))))
+  (format "~a-~a" i (path->string (file-name-from-path str))))
 
 (define (path-remove-extension ps)
   (path-replace-extension ps #""))
@@ -217,7 +220,7 @@
       (when (directory-exists? both)
         (copy-racket-file* both (build-path base-filename CONFIG)))))
   (if exhaustive?
-    (let ([filename (path-add-extension base-filename #".in" #".")])
+    (let ([filename (path-add-extension base-filename INPUT-EXTENSION #".")])
       (with-output-to-file filename #:exists 'error
         (lambda ()
           (for ((i (in-range num-configurations)))
@@ -228,7 +231,7 @@
         (define filename
           (path-add-extension
             (path-add-extension base-filename (format "~a" sample-id) #".")
-            #".in" #"_"))
+            INPUT-EXTENSION #"_"))
         (with-output-to-file filename
           (lambda ()
             (for ((i (in-range sample-size)))
@@ -325,10 +328,10 @@
                   (list (make-pre-file-subtask tgt out-file))]
                  [(eq? tgt-kind kind:typed-untyped)
                   (define in-file*
-                    (glob (build-path task-dir (string-append (format-target-tag tgt target-index) "*.in"))))
+                    (glob (build-path task-dir (string-append (format-target-tag tgt target-index) (format "*~a" INPUT-EXTENSION)))))
                   (define out-file*
                     (for/list ([f (in-list in-file*)])
-                      (path-replace-extension f #".out")))
+                      (path-replace-extension f OUTPUT-EXTENSION)))
                   (define config-dir
                     (build-path task-dir (format-target-tag tgt target-index) CONFIG))
                   (list (make-pre-typed-untyped-subtask tgt config-dir in-file* out-file*))]
@@ -347,7 +350,7 @@
 
 (define (file->outfile task-dir tgt target-index)
   (path-add-extension
-    (build-path task-dir (format-target-tag tgt target-index)) #".out" #"."))
+    (build-path task-dir (format-target-tag tgt target-index)) OUTPUT-EXTENSION #"."))
 
 (define (pre-subtask->subtask* st config)
   (cond
@@ -530,7 +533,7 @@
     ;; check modified state
     (let ([tu-path (build-path task-dir "1-sample-typed-untyped-target.in")]
           [tu-dir (build-path task-dir "1-sample-typed-untyped-target")]
-          [m-dir (build-path task-dir "2-sample-manifest-target")])
+          [m-dir (build-path task-dir "2-sample-manifest-target.rkt")])
       (check-pred file-exists?
         tu-path)
       (check-equal?
@@ -551,7 +554,13 @@
   (test-case "format-target-tag"
     (check-equal?
       (format-target-tag "foo/bar.rkt" 17)
-      "17-bar"))
+      "17-bar.rkt")
+    (check-equal?
+      (format-target-tag "foo/bar" 17)
+      "17-bar")
+    (check-equal?
+      (format-target-tag "foo/bar.blah/baz" 17)
+      "17-baz"))
 
   (test-case "path-remove-extension"
     (check-equal?
