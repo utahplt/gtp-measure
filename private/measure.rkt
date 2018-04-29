@@ -12,9 +12,13 @@
 ;; =============================================================================
 
 (define (measure task)
-  (log-gtp-measure-info "begin measuring ~a" task)
-  (for ((st (in-subtasks task)))
-    (log-gtp-measure-info "begin measuring ~a" st)
+  (define st* (in-subtasks task))
+  (define num-subtasks (length st*))
+  (define fmt (make-progress-counter num-subtasks "subtask"))
+  (log-gtp-measure-info "begin measuring ~a (~a subtasks)" task num-subtasks)
+  (for ((st (in-list st*))
+        (i (in-naturals 1)))
+    (log-gtp-measure-info "~a begin measuring ~a" (fmt i) st)
     (subtask-run! st))
   (log-gtp-measure-info "end measuring ~a" task)
   (void))

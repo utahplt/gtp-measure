@@ -39,7 +39,10 @@
       (-> gtp-measure-task/c exact-nonnegative-integer?)]
 
     [task->num-unmeasured-programs
-      (-> gtp-measure-task/c exact-nonnegative-integer?)]))
+      (-> gtp-measure-task/c exact-nonnegative-integer?)]
+
+    [make-progress-counter
+      (->* [natural?] [string?] (-> natural? string?))]))
 
 (require
   gtp-measure/private/configure
@@ -57,6 +60,9 @@
   (only-in racket/string
     string-join
     string-replace)
+  (only-in racket/math
+    natural?
+    order-of-magnitude)
   (only-in racket/port
     port->string
     port->lines)
@@ -68,6 +74,8 @@
   (only-in racket/sequence
     sequence-map
     sequence->list)
+  (only-in racket/format
+    ~r)
   (only-in racket/pretty
     pretty-format))
 
@@ -383,9 +391,13 @@
   (for/list ([in-file (in-list in-file*)]
              [out-file (in-list out-file*)])
     (define (thunk [out-port (current-output-port)])
+      (define total-configs (count-configurations in-file))
+      (define fmt (make-progress-counter total-configs "configuration"))
       (with-input-from-file in-file
         (lambda ()
-          (for ([configuration-id (in-lines)])
+          (for ([configuration-id (in-lines)]
+                [cfg-i (in-naturals 1)])
+            (log-gtp-measure-info "~a ~a" (fmt cfg-i) configuration-id)
             (copy-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
             (void
@@ -491,6 +503,13 @@
     (lambda ()
       (for/sum ((ln (in-lines)))
         (if (bitstring? ln) 1 0)))))
+
+(define (make-progress-counter total [unit-str #f])
+  (define units (if unit-str (string-append unit-str " ") ""))
+  (define num-digits (+ 1 (order-of-magnitude total)))
+  (define (fmt n) (~r n #:min-width num-digits #:pad-string " "))
+  (lambda (i)
+    (format "[~a~a/~a]" units (fmt i) total)))
 
 ;; =============================================================================
 
@@ -786,4 +805,18 @@
     (check-equal? (directory-name-from-path (string->path "a/b/")) "b")
     (check-exn exn:fail:contract?
       (lambda () (directory-name-from-path "a"))))
+
+  (test-case "make-progress-counter"
+    (define ctr0 (make-progress-counter 10))
+    (check-equal? (ctr0 0) "[ 0/10]")
+    (check-equal? (ctr0 5) "[ 5/10]")
+    (check-equal? (ctr0 10) "[10/10]")
+    (check-equal? (ctr0 222) "[222/10]")
+
+    (define ctrX (make-progress-counter 10 "X"))
+    (check-equal? (ctrX 0) "[X  0/10]")
+    (check-equal? (ctrX 2) "[X  2/10]")
+    (check-equal? (ctrX 3) "[X  3/10]")
+    (check-equal? (ctrX 10) "[X 10/10]")
+    (check-equal? (ctrX 9001) "[X 9001/10]"))
 )
