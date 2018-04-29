@@ -1,7 +1,5 @@
 #lang racket/base
 
-;; TODO move some of this to a gtp-util package
-
 (provide
   copy-file*
   copy-racket-file*

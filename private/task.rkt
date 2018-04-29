@@ -63,7 +63,8 @@
   (only-in gtp-util
     bitstring?
     natural->bitstring
-    filename-sort)
+    filename-sort
+    path-string->string)
   (only-in racket/sequence
     sequence-map
     sequence->list)
@@ -102,7 +103,11 @@
        (directory-exists? x)
        (file-exists? (build-path x MANIFEST.RKT))
        (file-exists? (build-path x CONFIG.RKTD))
-       (equal? (normalize-path (path-only x)) (gtp-measure-data-dir))))
+       (valid-parent-directory? x)))
+
+(define (valid-parent-directory? x)
+  #true
+  #;(equal? (normalize-path (path-only x)) (gtp-measure-data-dir)))
 
 (define (current-tasks/targets pre-targets)
   (define targets (normalize-targets pre-targets))
@@ -127,8 +132,14 @@
   (make-gtp-measure-task uid targets config))
 
 (define (task-directory->uid dir)
-  (define p (file-name-from-path dir))
-  (string->number (path->string p)))
+  (define p (directory-name-from-path dir))
+  (string->number p))
+
+(define (directory-name-from-path p)
+  (define-values [_base name mbd] (split-path p))
+  (unless mbd
+    (raise-argument-error 'directory-name-from-path "syntactic spec for a directory" p))
+  (path-string->string name))
 
 (define (task-directory->targets dir)
   (manifest->targets (build-path dir MANIFEST.RKT)))
@@ -493,7 +504,7 @@
   (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
   (define SAMPLE-TASK (build-path TEST-DIR "sample-task"))
-  (define TASK-24 (build-path SAMPLE-TASK "24"))
+  (define TASK-24 (build-path SAMPLE-TASK "24/"))
 
   (test-case "task-print"
     (define t (make-gtp-measure-task "A" "B" "C"))
@@ -739,7 +750,7 @@
     (check-equal? actual (length CONFIGS)))
 
   (test-case "task-directory->uid"
-    (check-equal? (task-directory->uid (build-path "1" "2")) 2)
+    (check-equal? (task-directory->uid (build-path "1" "2/")) 2)
     (check-equal? (task-directory->uid TASK-24) 24))
 
   ;; TODO should be OK to run on travis ... maybe https://github.com/racket/racket/pull/1947
@@ -758,4 +769,12 @@
                   st)])
       (check-equal? uid 24)
       (check-equal? (length st*) 1)))
+
+  (test-case "directory-name-from-path"
+    (check-equal? (directory-name-from-path "a/") "a")
+    (check-equal? (directory-name-from-path "a/b/") "b")
+    (check-equal? (directory-name-from-path (string->path "a/")) "a")
+    (check-equal? (directory-name-from-path (string->path "a/b/")) "b")
+    (check-exn exn:fail:contract?
+      (lambda () (directory-name-from-path "a"))))
 )

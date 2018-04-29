@@ -76,6 +76,12 @@
   (for/hash (((k v) (in-hash h)))
     (values k v)))
 
+(define (ensure-trailing-slash str)
+  (define L (string-length str))
+  (if (zero? L)
+    (raise-argument-error 'ensure-trailing-slash "non-empty-string?" str)
+    (path->string (path->directory-path str))))
+
 (define (raco-parse argv)
   (define cmdline-config (make-hash))
   (define (set-config! k v)
@@ -91,7 +97,7 @@
     #:argv argv
     #:once-any
     ;[("--clean")]
-    [("--resume") task-dir "Resume a stopped task" (set-box! *mode* (cons 'resume task-dir))]
+    [("--resume") task-dir "Resume a stopped task" (set-box! *mode* (cons 'resume (ensure-trailing-slash task-dir)))]
     [("--setup") "Setup task, but do not run" (set-box! *mode* 'setup)]
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
@@ -163,10 +169,14 @@
   (require
     rackunit
     racket/string
+    racket/runtime-path
     (only-in racket/port open-output-nowhere)
     (submod gtp-measure/private/util test))
 
-  (filesystem-test-case "raco-parse"
+  (define-runtime-path sample-task-dir "./test/sample-task/24")
+
+  ;; TODO running this test calls `exit`
+  #;(filesystem-test-case "raco-parse"
     (check-not-exn
       (lambda ()
         (parameterize ([current-output-port (open-output-nowhere)]
@@ -203,4 +213,21 @@
     (check-equal? (parse-yes-or-no "idk") #false)
     (check-equal? (parse-yes-or-no "") #false))
 
+  (test-case "ensure-trailing-slash"
+    (check-equal? (ensure-trailing-slash "a") "a/")
+    (check-equal? (ensure-trailing-slash "a/") "a/")
+    (check-equal? (ensure-trailing-slash "a/b") "a/b/")
+    (check-equal? (ensure-trailing-slash "a/b/") "a/b/")
+    (check-exn exn:fail:contract?
+      (lambda () (ensure-trailing-slash ""))))
+
+  (filesystem-test-case "trailing-slash"
+    (define dir*
+      (let ([str (path->string sample-task-dir)])
+        (list str (string-append str "/"))))
+    (parameterize ([current-output-port (open-output-nowhere)])
+      (for ((dir (in-list dir*)))
+        (check-not-exn
+          (lambda ()
+            (raco-parse (vector-immutable "--resume" dir)))))))
 )
