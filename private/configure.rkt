@@ -33,7 +33,9 @@
     [directory->config
       (-> (and/c path-string? directory-exists?) gtp-measure-config/c)]
     [init-config
-     (->* [] [gtp-measure-config/c] gtp-measure-config/c)]))
+     (->* [] [gtp-measure-config/c] gtp-measure-config/c)]
+    [update-config
+     (-> gtp-measure-config/c gtp-measure-config/c gtp-measure-config/c)]))
 
 (require
   gtp-measure/private/util

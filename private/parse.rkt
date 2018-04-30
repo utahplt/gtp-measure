@@ -5,6 +5,7 @@
 (require racket/contract)
 (provide
   GTP-MEASURE-TARGETS-ID
+  GTP-MEASURE-CONFIG-ID
 
   kind:typed-untyped
   kind:file
@@ -29,6 +30,8 @@
   racket-filenames
 
   (contract-out
+    [manifest->config
+      (-> (or/c module-path? resolved-module-path? module-path-index?) (and/c hash? immutable?))]
     [manifest->targets
       (-> (or/c module-path? resolved-module-path? module-path-index?) (listof gtp-measure-target/c))])
 
@@ -45,6 +48,7 @@
 ;; =============================================================================
 
 (define GTP-MEASURE-TARGETS-ID 'gtp-measure-targets)
+(define GTP-MEASURE-CONFIG-ID 'gtp-measure-config)
 
 (define kind:typed-untyped 'typed-untyped)
 (define kind:file 'file)
@@ -118,6 +122,10 @@
   (parameterize ([current-namespace (make-base-namespace)])
     (dynamic-require ps GTP-MEASURE-TARGETS-ID)))
 
+(define (manifest->config ps)
+  (parameterize ([current-namespace (make-base-namespace)])
+    (dynamic-require ps GTP-MEASURE-CONFIG-ID)))
+
 ;; -----------------------------------------------------------------------------
 
 (module+ test
@@ -128,6 +136,7 @@
   (define F-TGT (simplify-path (build-path TEST "sample-file-target.rkt")))
   (define TU-TGT (simplify-path (build-path TEST "sample-typed-untyped-target")))
   (define M-TGT (simplify-path (build-path TEST "sample-manifest-target.rkt")))
+  (define M-TGT/config (simplify-path (build-path TEST "sample-manifest-target-config.rkt")))
 
   (test-case "valid-target?"
     (check-equal?
@@ -176,12 +185,20 @@
 
   (test-case "racket-filenames"
     (let ((v (racket-filenames TEST)))
-      (check-equal? (set-count v) 2)
-      (check set=? v (set (string->path "sample-file-target.rkt") (string->path "sample-manifest-target.rkt")))))
+      (check-equal? (set-count v) 5)
+      (check set=? v (set (string->path "sample-file-target.rkt") (string->path "sample-manifest-target.rkt") (string->path "sample-manifest-target-config.rkt") (string->path "manifest1.rkt") (string->path "manifest2.rkt")))))
 
   (test-case "manifest->targets"
     (check-equal? (manifest->targets M-TGT)
                   (list (cons (path->string F-TGT) kind:file))))
+
+  (test-case "manifest->config"
+    (let ([h0 (manifest->config M-TGT)]
+          [h1 (manifest->config M-TGT/config)])
+      (check-pred hash? h0)
+      (check-pred hash? h1)
+      (check-equal? 0 (hash-count h0))
+      (check-equal? 1 (hash-count h1))))
 
   (test-case "gtp-measure-target"
     (define (parse stx)

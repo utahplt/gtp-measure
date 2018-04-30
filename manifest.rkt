@@ -15,17 +15,23 @@
 
 (define-syntax (-#%module-begin stx)
   (syntax-parse stx
-   [(_ tgt*:gtp-measure-target ...)
+   [(_ (~optional (~seq #:config cfg) #:defaults ((cfg #'#hash())))
+       tgt*:gtp-measure-target ...)
     #`(#%module-begin
-        (provide #,GTP-MEASURE-TARGETS-ID)
+        (provide #,GTP-MEASURE-TARGETS-ID #,GTP-MEASURE-CONFIG-ID)
         (require
           (only-in racket/path normalize-path path-only)
+          (only-in racket/contract define/contract)
+          (only-in gtp-measure/private/configure gtp-measure-config/c)
           (only-in gtp-measure/private/parse valid-target? valid-target?/kind))
         (define CWD
           (let ([p (variable-reference->module-source (#%variable-reference))])
             (if (path? p)
               (path-only p)
               (error 'gtp-measure/manifest "cannot find module source"))))
+        (define/contract #,GTP-MEASURE-CONFIG-ID
+          gtp-measure-config/c
+          'cfg)
         (define #,GTP-MEASURE-TARGETS-ID
           (for/list ([pre-path (in-list '(tgt*.string ...))]
                      [pre-kind (in-list '(tgt*.kind ...))])

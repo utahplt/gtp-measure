@@ -1,13 +1,15 @@
 #lang scribble/manual
 @require[
   (submod gtp-measure/private/configure for-doc)
-  gtp-measure/private/configure
+  gtp-measure/configure
+  (only-in gtp-measure/private/configure config-ref)
   (only-in racket/format ~a ~s)
   scriblib/autobib
   (for-label
     basedir
     gtp-util
     racket/base
+    gtp-measure/configure
     (only-in typed/racket require/typed)
     require-typed-check)]
 
@@ -238,9 +240,16 @@ An adaptor can require @filepath{typed} or @filepath{untyped} modules, and
 @; -----------------------------------------------------------------------------
 @section[#:tag "gtp-measure-config"]{GTP configuration}
 
+@defmodule[gtp-measure/configure]
+
 The @racketmodname[gtp-measure] library is parameterized by a set of key/value
  pairs.
 This section documents the available keys and the type of values each key expects.
+
+@defthing[gtp-measure-config/c flat-contract?]{
+  Contract for an immutable hash whose keys are a subset of those documented
+   below and whose values match the descriptions below.
+}
 
 @defidform[#:kind "symbol" key:bin]{
   Value must be a string that represets a path to a directory.
@@ -367,7 +376,14 @@ The @racketmodname[gtp-measure] library includes a few small languages to
  describe data formats.
 
 @defmodulelang[gtp-measure/manifest]{
-  A manifest contains a sequence of target descriptors.
+  A manifest contains an optional hash with configuration options
+   and a sequence of target descriptors.
+
+  The configuration options must be prefixed by the keyword @racket[#:config]
+   and must be a hash literal that matches the @racket[gtp-measure-config/c]
+   contract.
+  If present, the options specified in the hash override any defaults.
+
   A target descriptor is either a string representing a file or directory,
    or a pair of such a string and a target kind.
   In the first case, the target kind is inferred at runtime.
@@ -376,6 +392,8 @@ The @racketmodname[gtp-measure] library includes a few small languages to
 
 @codeblock[#:keep-lang-line? #true]{
   #lang gtp-measure/manifest
+
+  #:config #hash((iterations . 10))
 
   file-0.rkt
   typed-untyped-dir-0
