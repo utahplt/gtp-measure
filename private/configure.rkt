@@ -16,14 +16,13 @@
   key:num-samples
   key:sample-factor
   key:start-time
+  key:working-directory
 
   CONFIG.RKTD
 
   config-ref
 
   gtp-measure-config/c
-
-  gtp-measure-data-dir
 
   system-racket-path
 
@@ -60,6 +59,13 @@
 (define (system-racket-path)
   (find-executable-path (find-system-path 'exec-file)))
 
+(define (gtp-measure-data-dir)
+  (define ps (writable-data-dir #:program "gtp-measure"))
+  (unless (directory-exists? ps)
+    (make-parent-directory* ps)
+    (make-directory ps))
+  ps)
+
 (define (assert-initialized! . bx*)
   (for ((bx (in-list bx*)))
     (unless (unbox bx)
@@ -89,7 +95,10 @@
     [key:start-time       0  real?]
     [key:argv           '()  (listof string?)]
     [key:cutoff           9  exact-nonnegative-integer?]
-    [key:sample-factor   10  exact-positive-integer?])
+    [key:sample-factor   10  exact-positive-integer?]
+    [key:working-directory
+      (path->string (gtp-measure-data-dir))
+      (and/c string? directory-exists? absolute-path?)])
 
   (assert-initialized! *default-config* *config-spec*)
 
@@ -108,7 +117,7 @@
         (for/and ([(k v) (in-hash h)])
           (define ctc (hash-ref key->contract k))
           (or (ctc v)
-              (begin (log-gtp-measure-warning "key-value mismatch: key ~a value ~a contract ~a" k v ctc)
+              (begin (log-gtp-measure-warning "key-value mismatch: key '~s' value ~s contract ~a" k v ctc)
                      #false))))))
 )
 
@@ -146,13 +155,6 @@
     (make-parent-directory* ps)
     (with-output-to-file ps
       (lambda () (writeln (make-immutable-hash)))))
-  ps)
-
-(define (gtp-measure-data-dir)
-  (define ps (writable-data-dir #:program "gtp-measure"))
-  (unless (directory-exists? ps)
-    (make-parent-directory* ps)
-    (make-directory ps))
   ps)
 
 (define (update-config old-config new-config)

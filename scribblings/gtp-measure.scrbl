@@ -324,6 +324,12 @@ This section documents the available keys and the type of values each key expect
   You should probably not override this default.
 }
 
+@defidform[#:kind "symbol" key:working-directory]{
+  Value must be a string absolute path.
+
+  All intermediate files and all results are saved in the given directory.
+}
+
 
 @subsection{Configuration Fallback}
 

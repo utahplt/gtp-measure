@@ -96,13 +96,14 @@
 (define (task-print t port write?)
   (if write?
     (fprintf port
-             "Task ~a~n- targets : ~a~n- config : ~a~n"
+             "Task ~a~n- targets : ~a~n- config : ~a~n- working directory : ~a~n"
              (gtp-measure-task-uid t)
              (pretty-format (gtp-measure-task-targets t))
-             (pretty-format (gtp-measure-task-config t)))
+             (pretty-format (gtp-measure-task-config t))
+             (pretty-format (gtp-measure-task-dir t)))
     (fprintf port "#<task:~a>" (gtp-measure-task-uid t))))
 
-(struct gtp-measure-task [uid targets config]
+(struct gtp-measure-task [uid targets config dir]
   #:extra-constructor-name make-gtp-measure-task
   #:methods gen:custom-write [(define write-proc task-print)])
 
@@ -126,21 +127,21 @@
   '())
 
 (define (init-task pre-targets config)
-  (define uid (fresh-uid))
+  (define uid (fresh-uid config))
   (log-gtp-measure-debug "creating task ~a" uid)
   (define targets (normalize-targets pre-targets))
-  (define task-dir (make-task-directory uid))
+  (define task-dir (make-task-directory uid config))
   (void
     (write-config config task-dir)
     (write-targets targets task-dir)
     (write-checklist targets config task-dir))
-  (make-gtp-measure-task uid targets config))
+  (make-gtp-measure-task uid targets config task-dir))
 
 (define (resume-task dir)
   (define uid (task-directory->uid dir))
   (define targets (task-directory->targets dir))
   (define config (directory->config dir))
-  (make-gtp-measure-task uid targets config))
+  (make-gtp-measure-task uid targets config dir))
 
 (define (task-directory->uid dir)
   (define p (directory-name-from-path dir))
@@ -155,8 +156,8 @@
 (define (task-directory->targets dir)
   (manifest->targets (build-path dir MANIFEST.RKT)))
 
-(define (make-task-directory uid)
-  (define task-dir (format-task-directory uid))
+(define (make-task-directory uid config)
+  (define task-dir (format-task-directory uid config))
   (if (directory-exists? task-dir)
     (raise-arguments-error 'init-task "(not/c directory-exists?)"
                            "directory" task-dir
@@ -166,15 +167,10 @@
       task-dir)))
 
 (define (task->directory t)
-  (define task-dir (format-task-directory (gtp-measure-task-uid t)))
-  (if (directory-exists? task-dir)
-    task-dir
-    (raise-arguments-error 'task->directory "directory-exists?"
-                           "directory" task-dir
-                           "task" t)))
+  (gtp-measure-task-dir t))
 
-(define (format-task-directory uid)
-  (build-path (gtp-measure-data-dir) (number->string uid)))
+(define (format-task-directory uid config)
+  (build-path (config-ref config key:working-directory) (number->string uid)))
 
 (define (write-config config task-dir)
   (config->directory config task-dir))
@@ -245,8 +241,13 @@
             (for ((i (in-range sample-size)))
               (displayln (natural->bitstring (random num-configurations) #:bits num-components)))))))))
 
-(define (fresh-uid)
-  (+ 1 (length (directory-list (gtp-measure-data-dir)))))
+(define (fresh-uid config)
+  (define dir (config-ref config key:working-directory))
+  (define max-uid
+    (for/fold ([acc 0])
+              ([ps (in-list (directory-list dir))])
+      (max acc (or (string->number (path->string ps)) 0))))
+  (+ 1 max-uid))
 
 (define normalize-targets
   (let ([cwd (normalize-path CWD)])
@@ -531,7 +532,7 @@
     (build-path SAMPLE-TASK "38/"))
 
   (test-case "task-print"
-    (define t (make-gtp-measure-task "A" "B" "C"))
+    (define t (make-gtp-measure-task "A" "B" "C" "D"))
     (define short-str (format "~a" t))
     (define long-str (format "~s" t))
     (check-regexp-match #rx"A" short-str)
@@ -539,7 +540,8 @@
       (regexp-match? #rx"B" short-str))
     (check-regexp-match #rx"A" long-str)
     (check-regexp-match #rx"B" long-str)
-    (check-regexp-match #rx"C" long-str))
+    (check-regexp-match #rx"C" long-str)
+    (check-regexp-match #rx"D" long-str))
 
   (filesystem-test-case "write-checklist"
     (define tgts (list (cons (path->string F-TGT) kind:file)
@@ -596,9 +598,10 @@
     (check-equal? orig-tgts m-tgts))
 
   (filesystem-test-case "fresh-uid"
-    (define uid (format "~a" (fresh-uid)))
+    (define config (init-config))
+    (define uid (format "~a" (fresh-uid config)))
     (check-pred (lambda (x) (not (set-member? x uid)))
-      (for*/list ([d (in-list (directory-list (gtp-measure-data-dir)))])
+      (for*/list ([d (in-list (directory-list (config-ref config key:working-directory)))])
         (path->string d))))
 
   (test-case "normalize-targets"

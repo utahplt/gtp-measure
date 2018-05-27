@@ -82,6 +82,18 @@
     (raise-argument-error 'ensure-trailing-slash "non-empty-string?" str)
     (path->string (path->directory-path str))))
 
+(define (ensure-directory d)
+  (and (path-string? d)
+       (void
+         (cond
+           [(file-exists? d)
+            (raise-argument-error 'gtp-measure "(and/c path-string? (not/c file-exists?))" d)]
+           [(directory-exists? d)
+            (void)]
+           [else
+            (make-directory d)]))
+       d))
+
 (define (raco-parse argv)
   (define cmdline-config (make-hash))
   (define (set-config! k v)
@@ -111,6 +123,7 @@
     [("-S" "--sample-factor") sf "Determines sample size (sample-size = S * num-components)" (set-config! key:sample-factor (read/ctc sf exact-nonnegative-integer?))]
     [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples (read/ctc ns exact-positive-integer?))]
     [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-nonnegative-integer?))]
+    [("--output") out-dir "Directory to store inputs and outputs" (set-config! key:working-directory (ensure-directory (path->string (path->complete-path out-dir))))]
     #:args other-targets
     (let ([cmdline-config (hash->immutable-hash cmdline-config)]
           [mode (unbox *mode*)])
