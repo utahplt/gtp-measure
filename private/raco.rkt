@@ -137,7 +137,7 @@
          (unless (and (null? other-targets)
                       (null? (unbox *targets*)))
            (log-gtp-measure-warning "ignoring command-line targets ~a" (append other-targets (unbox *targets*))))
-         (define old-task (resume-task dir))
+         (define old-task (resume-task (path->string (path->complete-path dir))))
          ;; TODO this code is very similar to the "normal" case below
          (log-gtp-measure-info "prepared task ~a (~a programs to run)" old-task (task->num-unmeasured-programs old-task))
          (void
