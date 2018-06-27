@@ -231,6 +231,12 @@
             (displayln (natural->bitstring i #:bits num-components))))))
     (let ([num-samples (config-ref config key:num-samples)]
           [sample-size (* (config-ref config key:sample-factor) num-components)])
+      ;; make one file for the typed and untyped configs
+      (with-output-to-file (path-add-extension base-filename INPUT-EXTENSION #".")
+        (lambda ()
+          (displayln (natural->bitstring 0 #:bits num-components))
+          (displayln (natural->bitstring (- num-configurations 1) #:bits num-components))))
+      ;; make one sample file for each num-samples
       (for ([sample-id (in-range num-samples)])
         (define filename
           (path-add-extension
