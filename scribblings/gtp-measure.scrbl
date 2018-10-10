@@ -80,6 +80,11 @@ Each @seclink["gtp-measure-task"]{task} gets a data directory, stored under:
   (writable-data-dir #:program "gtp-measure")
 ]
 
+Together, the data files and command-line arguments build a
+@tech{gtp-measure configuration} value.
+See @secref["gtp:config-fallback"] for details on how these data sources
+ work together.
+
 
 @; -----------------------------------------------------------------------------
 @section[#:tag "gtp-measure-targets"]{GTP targets}
@@ -247,7 +252,8 @@ The @racketmodname[gtp-measure] library is parameterized by a set of key/value
 This section documents the available keys and the type of values each key expects.
 
 @defthing[gtp-measure-config/c flat-contract?]{
-  Contract for an immutable hash whose keys are a subset of those documented
+  Contract for a @deftech{gtp-measure configuration}; that is,
+   an immutable hash whose keys are a subset of those documented
    below and whose values match the descriptions below.
 }
 
@@ -256,6 +262,15 @@ This section documents the available keys and the type of values each key expect
   The directory must contain executables named @exec{raco} and @exec{racket}.
 
   Used to compile and run Racket programs.
+
+  In particular, if @litchar{<BIN>} is the value of @racket[key:bin] then the
+   command to compile the target @litchar{<FIILE>} is:
+
+  @nested[#:style 'inset @litchar{<BIN>/raco make -v <FILE>}]
+
+  and the command to run @litchar{<FILE>} is:
+
+  @nested[#:style 'inset @litchar{<BIN>/racket <FILE>}]
 }
 
 @defidform[#:kind "symbol" key:iterations]{
@@ -331,7 +346,7 @@ This section documents the available keys and the type of values each key expect
 }
 
 
-@subsection{Configuration Fallback}
+@subsection[#:tag "gtp:config-fallback"]{Configuration Fallback}
 
 The @racketmodname[gtp-measure] library defines a default value for each
  configuration key.
