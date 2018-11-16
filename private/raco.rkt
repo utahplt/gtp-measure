@@ -234,7 +234,8 @@
     (check-exn exn:fail:contract?
       (lambda () (ensure-trailing-slash ""))))
 
-  (filesystem-test-case "trailing-slash"
+  #;(filesystem-test-case "trailing-slash"
+    ;; runs entire task
     (define dir*
       (let ([str (path->string sample-task-dir)])
         (list str (string-append str "/"))))

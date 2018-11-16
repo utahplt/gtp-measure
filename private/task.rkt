@@ -798,8 +798,9 @@
            [st* (for*/list ([pst (pre-subtasks/internal tgts TASK-24)]
                             [st (in-list (pre-subtask->subtask* pst config))])
                   st)])
+      (check-equal? (length tgts) 1)
       (check-equal? uid 24)
-      (check-equal? (length st*) 1))
+      (check-equal? (length st*) 2))
     (let* ([t (resume-task TASK/MCFG)]
            [tgts (gtp-measure-task-targets t)]
            [orig-config (gtp-measure-task-config t)]

@@ -57,7 +57,13 @@
 (define *default-config* (box #f))
 
 (define (system-racket-path)
-  (find-executable-path (find-system-path 'exec-file)))
+  (define exec-file (find-system-path 'exec-file))
+  (define exec-path (find-executable-path exec-file))
+  (or exec-path
+      (raise-arguments-error 'system-racket-path
+                             "cannot find absolute path to racket executable"
+                             "(find-system-path 'exec-file)" exec-file
+                             "(find-executable-path <exec-file>)" exec-path)))
 
 (define (gtp-measure-data-dir)
   (define ps (writable-data-dir #:program "gtp-measure"))
