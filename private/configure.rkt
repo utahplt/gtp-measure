@@ -58,12 +58,18 @@
 
 (define (system-racket-path)
   (define exec-file (find-system-path 'exec-file))
-  (define exec-path (find-executable-path exec-file))
+  (define orig-dir (find-system-path 'orig-dir))
+  (define pre-exec-path
+    (if (absolute-path? exec-file)
+      exec-file
+      (build-path orig-dir exec-file)))
+  (define exec-path (find-executable-path pre-exec-path))
   (or exec-path
       (raise-arguments-error 'system-racket-path
                              "cannot find absolute path to racket executable"
                              "(find-system-path 'exec-file)" exec-file
-                             "(find-executable-path <exec-file>)" exec-path)))
+                             "(find-system-path 'orig-dir)" orig-dir
+                             "(find-executable-path (build-path <orig-dir> <exec-file>))" exec-path)))
 
 (define (gtp-measure-data-dir)
   (define ps (writable-data-dir #:program "gtp-measure"))
