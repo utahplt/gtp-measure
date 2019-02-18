@@ -10,6 +10,7 @@
     gtp-util
     racket/base
     gtp-measure/configure
+    racket/contract
     (only-in typed/racket require/typed)
     require-typed-check)]
 
@@ -112,12 +113,12 @@ A @deftech{gtp-measure target} is either:
   @item{
     The optional @filepath{base} directory may contain data files that the
      @filepath{typed} and @filepath{untyped} modules may reference via a
-     relative path (e.g. @filepath{../base/foo.rkt})
+     relative path (e.g. @filepath{../base/file.rkt})
   }
   @item{
     The optional @filepath{both} directory may contain modules that the
      @filepath{typed} and @filepath{untyped} modules may reference as if they
-     were in the same directory (e.g. @filepath{foo.rkt}).
+     were in the same directory (e.g. @filepath{file.rkt}).
     If so, the @filepath{typed} and @filepath{untyped} modules will not compile
      unless the @filepath{both} modules are copied into their directory.
     This is @seclink["gtp-typed/untyped-design"]{by design}.
@@ -190,7 +191,7 @@ Modules are ordered by @racket[filename-sort].
 
 An @deftech[#:key "gtp-measure-exhaustive"]{exhaustive evaluation} of a
  @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target} with @math{M}
- modules measures the performance of all @math{2**M} configurations.
+ modules measures the performance of all @math{2^M} configurations.
 This is a lot of measuring, and will probably take a very long time if @math{M}
  is @math{15} or more.
 
@@ -199,7 +200,7 @@ An @math{R-S}-@deftech[#:key "gtp-measure-approximate"]{approximate evaluation}
  @math{R} sequences containing @math{S*M} configuration in each sequence.
 @; Hmm... sequence could be "ordered set" if sampling without replacement,
 @; ... and in principle order shouldn't matter but it MIGHT because of hardware?
-This number, @math{RSM}, is probably less than @math{2**M}.
+This number, @math{RSM}, is probably less than @math{2^M}.
 (If it's not, just do an exhaustive evaluation.)
 See @secref{gtp-measure-config} for how to set @math{R} and @math{S},
  and how to switch from an exhaustive evaluation to an approximate one.
@@ -222,7 +223,7 @@ So given a typed/untyped directory, @racketmodname[gtp-measure] needs to be able
 
 The @filepath{typed} and @filepath{untyped} directories are a first step to
  reduce space.
-Instead of storing all @math{2**M} programs for a program with @math{M}
+Instead of storing all @math{2^M} programs for a program with @math{M}
  modules, we store @math{2M} modules.
 The reason we store @math{2M} instead of just @math{M} typed modules is that
  we do not have a way to automatically remove types from a Typed Racket program
