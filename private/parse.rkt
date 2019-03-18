@@ -33,7 +33,13 @@
     [manifest->config
       (-> (or/c module-path? resolved-module-path? module-path-index?) (and/c hash? immutable?))]
     [manifest->targets
-      (-> (or/c module-path? resolved-module-path? module-path-index?) (listof gtp-measure-target/c))])
+      (-> (or/c module-path? resolved-module-path? module-path-index?) (listof gtp-measure-target/c))]
+    [string->time-limit
+      (-> string? exact-nonnegative-integer?)]
+    [hours->seconds
+      (-> exact-nonnegative-integer? exact-nonnegative-integer?)]
+    [minutes->seconds
+      (-> exact-nonnegative-integer? exact-nonnegative-integer?)])
 
 )
 
@@ -125,6 +131,25 @@
 (define (manifest->config ps)
   (parameterize ([current-namespace (make-base-namespace)])
     (dynamic-require ps GTP-MEASURE-CONFIG-ID)))
+
+(define string->time-limit
+  (let ([t-rx #rx"^([0-9]+)(h|m|s|)$"])
+    (lambda (str)
+      (define m (regexp-match t-rx str))
+      (define n (if m
+                  (string->number (cadr m))
+                  (raise-argument-error 'string->time-limit "string of 0-9 digits with optional unit suffix" str)))
+      (case (caddr m)
+        (("h") (hours->seconds n))
+        (("m") (minutes->seconds n))
+        (("s" "") n)
+        (else (error 'string->time-limit "parsed unexpected suffix ~s from string ~s" (caddr m) str))))))
+
+(define (hours->seconds n)
+  (minutes->seconds (* 60 n)))
+
+(define (minutes->seconds n)
+  (* 60 n))
 
 ;; -----------------------------------------------------------------------------
 
@@ -225,4 +250,20 @@
     (check-equal?
       (parse #'43)
       #false))
+
+  (test-case "string->time-limit"
+    (check-equal? (minutes->seconds 4)
+                  240)
+    (check-equal? (hours->seconds 1)
+                  3600)
+    (check-equal? (string->time-limit "0")
+                  0)
+    (check-equal? (string->time-limit "8s")
+                  8)
+    (check-equal? (string->time-limit "2m")
+                  120)
+    (check-equal? (string->time-limit "3h")
+                  10800)
+    (check-exn exn:fail:contract?
+      (lambda () (string->time-limit "235ms"))))
 )
