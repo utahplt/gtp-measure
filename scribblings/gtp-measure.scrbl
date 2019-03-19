@@ -347,6 +347,8 @@ This section documents the available keys and the type of values each key expect
   The total time includes all the warmup iterations and all the collecting iterations.
 
   See also @secref{sec:parse-time-limit}.
+
+  @history[#:added "0.3"]
 }
 
 @defidform[#:kind "symbol" key:argv]{

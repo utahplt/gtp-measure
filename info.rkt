@@ -11,7 +11,7 @@
   "typed-racket-lib" ;; why?
 ))
 (define pkg-desc "For measuring")
-(define version "0.2")
+(define version "0.3")
 (define pkg-authors '(ben))
 (define scribblings '(("scribblings/gtp-measure.scrbl" ())))
 (define raco-commands '(("gtp-measure" (submod gtp-measure/private/raco main) "Collect performance data" #f)))
