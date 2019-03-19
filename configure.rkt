@@ -10,6 +10,7 @@
   key:num-samples
   key:sample-factor
   key:start-time
+  key:time-limit
   gtp-measure-config/c)
 
 (require gtp-measure/private/configure)

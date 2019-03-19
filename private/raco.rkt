@@ -122,6 +122,7 @@
     [("-c" "--cutoff") N "Max. number of components to measure exhaustively (vs. by sampling)" (set-config! key:cutoff (read/ctc N exact-nonnegative-integer?))]
     [("-S" "--sample-factor") sf "Determines sample size (sample-size = S * num-components)" (set-config! key:sample-factor (read/ctc sf exact-nonnegative-integer?))]
     [("-R" "--num-samples") ns "Number of samples" (set-config! key:num-samples (read/ctc ns exact-positive-integer?))]
+    [("--max-config-time") time-limit "time limit to run all iterations for one config. (h, m, or s)" (set-config! key:time-limit (string->time-limit time-limit))]
     [("--warmup") iters "JIT warmup iterations" (set-config! key:jit-warmup (read/ctc iters exact-nonnegative-integer?))]
     [("--output") out-dir "Directory to store inputs and outputs" (set-config! key:working-directory (ensure-directory (path->string (path->complete-path out-dir))))]
     #:args other-targets
