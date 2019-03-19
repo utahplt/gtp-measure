@@ -53,6 +53,9 @@
   racket/path
   racket/set
   racket/runtime-path
+  (only-in racket/sandbox
+    exn:fail:resource?
+    call-with-deep-time-limit)
   (only-in racket/system
     process)
   (only-in racket/list
@@ -435,6 +438,7 @@
     (bin->rackets (config-ref config key:bin)))
   (define iterations (config-ref config key:iterations))
   (define jit-warmup (config-ref config key:jit-warmup))
+  (define time-limit (config-ref config key:time-limit))
   (define devnull ;; https://stackoverflow.com/a/313115/5237018
     (case (system-type 'os) ((windows) "NUL") (else "/dev/null")))
   (define cmd
@@ -455,13 +459,22 @@
         (apply values (process cmd #:set-pwd? #true))))
     (log-gtp-measure-info "begin subprocess ~a" sub-pid)
     (define exit-code
-      (let loop ()
-        (sub-control 'wait)
-        (or (sub-control 'exit-code)
-            (begin (log-gtp-measure-warning "resume subprocess ~a" sub-pid)
-                   (loop)))))
+      (let ()
+        (define (loop)
+          (sub-control 'wait)
+          (or (sub-control 'exit-code)
+              (begin (log-gtp-measure-warning "resume subprocess ~a" sub-pid)
+                     (loop))))
+        (if time-limit
+          (with-handlers ([exn:fail:resource? (lambda (ex) #false)])
+            (call-with-deep-time-limit time-limit loop))
+          (loop))))
     (log-gtp-measure-info "end subprocess ~a" sub-pid)
     (cond
+     [(not exit-code)
+      (log-gtp-measure-warning "subprocess ~a exceeded time limit (~as)" sub-pid time-limit)
+      (fprintf out-port "timeout ~a" (* time-limit 1000))
+      (void)]
      [(zero? exit-code)
       (for ((ln (in-lines sub-in))
             #:when (time-line? ln))
@@ -530,6 +543,7 @@
   (define TASK/MCFG
     ;; task with manifests that override the config
     (build-path SAMPLE-TASK "38/"))
+  (define INFINITE-LOOP-TGT (build-path TEST-DIR "infinite-loop-file-target.rkt"))
 
   (test-case "task-print"
     (define t (make-gtp-measure-task "A" "B" "C" "D"))
@@ -716,6 +730,46 @@
       (check-equal? (length out-str*) (config-ref config key:iterations))
       (check-pred time-line? (car out-str*))
       (check-true (andmap time-line? out-str*))))
+
+  (filesystem-test-case "make-file-timer/timeout-pass"
+    (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
+    (define time-limit 5) ;; seconds
+    (when (file-exists? test-file)
+      (delete-file test-file))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:bin (path->string (path-only (system-racket-path))))
+                           (cons key:time-limit time-limit)
+                           (cons key:iterations 1)
+                           (cons key:jit-warmup 1)))))
+    (define thunk (make-file-timer F-TGT config))
+    (define out-str*
+      (begin
+        (call-with-output-file test-file thunk)
+        (begin0
+          (file->lines test-file)
+          (delete-file test-file))))
+    (check-equal? (length out-str*) 1))
+
+  (filesystem-test-case "make-file-timer/timeout-fail"
+    (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
+    (define time-limit 1) ;; seconds
+    (when (file-exists? test-file)
+      (delete-file test-file))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:bin (path->string (path-only (system-racket-path))))
+                           (cons key:time-limit time-limit)
+                           (cons key:iterations 1)
+                           (cons key:jit-warmup 1)))))
+    (define thunk (make-file-timer INFINITE-LOOP-TGT config))
+    (define out-str*
+      (begin
+        (call-with-output-file test-file thunk)
+        (begin0
+          (file->lines test-file)
+          (delete-file test-file))))
+    (check-equal? out-str* '("timeout 1000")))
 
   (test-case "time-line?"
     (check-pred time-line?

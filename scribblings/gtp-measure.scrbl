@@ -1,10 +1,15 @@
 #lang scribble/manual
+
+@; TODO
+@; - document the output format
+
 @require[
   (submod gtp-measure/private/configure for-doc)
   gtp-measure/configure
   (only-in gtp-measure/private/configure config-ref)
   (only-in racket/format ~a ~s)
   scriblib/autobib
+  scribble/example
   (for-label
     basedir
     gtp-util
@@ -332,6 +337,20 @@ This section documents the available keys and the type of values each key expect
   You should probably not override this default.
 }
 
+@defidform[#:kind "symbol" key:time-limit]{
+  Value must be an @racket[(or/c #false exact-nonnegative-integer?)].
+
+  Sets a time limit for the total time to run a configuration.
+  If the value is @racket[#false] then there is no time limit.
+  Otherwise, the value is the time limit in @bold{seconds}.
+
+  The total time includes all the warmup iterations and all the collecting iterations.
+
+  See also @secref{sec:parse-time-limit}.
+
+  @history[#:added "0.3"]
+}
+
 @defidform[#:kind "symbol" key:argv]{
   Value must be a list of string.
 
@@ -361,8 +380,8 @@ Run @|gtp-measure-exec| to see available flags.
 The defaults for the machine that rendered this document are the following:
 
 @(apply itemlist
-  (for/list ([k-stx (in-list (list @racket[key:bin] @racket[key:iterations] @racket[key:jit-warmup] @racket[key:num-samples] @racket[key:sample-factor] @racket[key:cutoff] @racket[key:entry-point] @racket[key:start-time] @racket[key:argv]))]
-             [k-val (in-list (list key:bin key:iterations key:jit-warmup key:num-samples key:sample-factor key:cutoff key:entry-point key:start-time key:argv))])
+  (for/list ([k-stx (in-list (list @racket[key:bin] @racket[key:iterations] @racket[key:jit-warmup] @racket[key:num-samples] @racket[key:sample-factor] @racket[key:cutoff] @racket[key:entry-point] @racket[key:start-time] @racket[key:time-limit] @racket[key:argv]))]
+             [k-val (in-list (list key:bin key:iterations key:jit-warmup key:num-samples key:sample-factor key:cutoff key:entry-point key:start-time key:time-limit key:argv))])
     @item{@|k-stx| = @racket[(unsyntax @config-ref[DEFAULT-CONFIG k-val])]}))
 
 
@@ -430,7 +449,38 @@ There is an internal syntax class for these ``target descriptors'' that should
 
 
 @; -----------------------------------------------------------------------------
-@;@section{Reference}
-@; TODO change name!!!
+@section{gtp-measure Utilities}
+
+@subsection[#:tag "sec:parse-time-limit"]{Time Limit Parsing}
+
+@defproc[(string->time-limit [str string?]) exact-nonnegative-integer?]{
+  Convert a string to a natural number that represents a time limit in seconds.
+  The string must begin with a sequence of digits (@litchar{[0-9]*})
+   and may optionally end with one of the following unit suffixes:
+   @racket{h} (hours),
+   @racket{m} (minues),
+   @racket{s} (seconds, the default).
+
+  @examples[#:eval (make-base-eval '(require gtp-measure/parse))
+    (string->time-limit "1")
+    (string->time-limit "1s")
+    (string->time-limit "1m")
+    (string->time-limit "1h")
+  ]
+}
+
+@deftogether[(
+  @defproc[(hours->seconds [h exact-nonnegative-integer?]) exact-nonnegative-integer?]{}
+  @defproc[(minutes->seconds [m exact-nonnegative-integer?]) exact-nonnegative-integer?]{}
+)]{
+  Convert a positive amount of time (in some kind of units) to an equal amount of seconds.
+
+  @examples[#:eval (make-base-eval '(require gtp-measure/parse))
+    (hours->seconds 1)
+    (minutes->seconds 1)
+  ]
+}
+
+
 
 

@@ -16,6 +16,7 @@
   key:num-samples
   key:sample-factor
   key:start-time
+  key:time-limit
   key:working-directory
 
   CONFIG.RKTD
@@ -108,6 +109,7 @@
     [key:argv           '()  (listof string?)]
     [key:cutoff           9  exact-nonnegative-integer?]
     [key:sample-factor   10  exact-positive-integer?]
+    [key:time-limit      #f  (or/c #f exact-nonnegative-integer?)]
     [key:working-directory
       (path->string (gtp-measure-data-dir))
       (and/c string? directory-exists? absolute-path?)])
