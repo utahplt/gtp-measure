@@ -731,7 +731,27 @@
       (check-pred time-line? (car out-str*))
       (check-true (andmap time-line? out-str*))))
 
-  (filesystem-test-case "make-file-timer/timeout"
+  (filesystem-test-case "make-file-timer/timeout-pass"
+    (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
+    (define time-limit 5) ;; seconds
+    (when (file-exists? test-file)
+      (delete-file test-file))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:bin (path->string (path-only (system-racket-path))))
+                           (cons key:time-limit time-limit)
+                           (cons key:iterations 1)
+                           (cons key:jit-warmup 1)))))
+    (define thunk (make-file-timer F-TGT config))
+    (define out-str*
+      (begin
+        (call-with-output-file test-file thunk)
+        (begin0
+          (file->lines test-file)
+          (delete-file test-file))))
+    (check-equal? (length out-str*) 1))
+
+  (filesystem-test-case "make-file-timer/timeout-fail"
     (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
     (define time-limit 1) ;; seconds
     (when (file-exists? test-file)
