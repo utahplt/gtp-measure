@@ -42,7 +42,10 @@
       (-> gtp-measure-task/c exact-nonnegative-integer?)]
 
     [make-progress-counter
-      (->* [natural?] [string?] (-> natural? string?))]))
+      (->* [natural?] [string?] (-> natural? string?))]
+
+    [bin->rackets
+      (-> directory-exists? (values file-exists? file-exists?))]))
 
 (require
   gtp-measure/private/configure
