@@ -277,6 +277,15 @@ This section documents the available keys and the type of values each key expect
   and the command to run @litchar{<FILE>} is:
 
   @nested[#:style 'inset @litchar{<BIN>/racket <FILE>}]
+
+  Since this package was originally created to measure the
+   @hyperlink["https://docs.racket-lang.org/gtp-benchmarks/index.html"]{GTP benchmarks},
+   which depend on the @racketmodname[require-typed-check] package,
+   invoking @exec{raco gtp-measure} ensures that the package is installed for
+   the current value of @racket[key:bin].
+  If the package is missing, @litchar{<BIN>/raco pkg} installs it.
+
+  @history[#:changed "0.3" @elem{Automatically install @racketmodname[require-typed-check] if missing.}]
 }
 
 @defidform[#:kind "symbol" key:iterations]{
