@@ -9,6 +9,7 @@
   gtp-measure/private/task
   gtp-measure/private/util
   gtp-measure/private/measure
+  gtp-measure/private/check-pkg-deps
   racket/cmdline
   (only-in racket/path
     normalize-path)
@@ -162,6 +163,7 @@
            (if (eq? mode 'setup)
              (printf "Setup complete ~s~n" new-task)
              (void
+               (check-pkg-deps (config-ref config key:bin) #:auto? #true)
                (measure new-task)
                (summarize-results new-task)))])]
         [else
