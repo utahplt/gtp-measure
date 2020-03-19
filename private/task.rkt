@@ -808,7 +808,7 @@
     (define racket-path (system-racket-path))
     (define racket-dir (path-only racket-path))
     (define-values [raco-bin racket-bin] (bin->rackets racket-dir))
-    (check-equal? racket-bin (path->string racket-path))
+    (check-equal? racket-bin (path->string (build-path (path-only racket-path) "racket")))
     (check-equal? (path->string (file-name-from-path raco-bin)) "raco"))
 
   (filesystem-test-case "subtask-run!"
