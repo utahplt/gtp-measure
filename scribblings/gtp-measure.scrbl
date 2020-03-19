@@ -98,12 +98,14 @@ See @secref["gtp:config-fallback"] for details on how these data sources
 A @deftech{gtp-measure target} is either:
 @itemlist[
 @item{
-  a @deftech[#:key "gtp-file-target"]{file} containing a Racket
+  @deftech{gtp file target} :
+  a file containing a Racket
    module and exactly one call to @racket[time-apply]
    (possibly via @racket[time]);
 }
 @item{
-  a @deftech[#:key "gtp-typed/untyped-target"]{directory}
+  @deftech{gtp typed/untyped target} :
+  a directory
    containing: (1) a @filepath{typed} directory, (2) an @filepath{untyped} directory,
    (3) optionally a @filepath{base} directory, and (4) optionally a @filepath{both} directory.
   @itemlist[
@@ -131,6 +133,7 @@ A @deftech{gtp-measure target} is either:
   ]
 }
 @item{
+  @deftech{gtp manifest target} :
   a file containing a @racketmodname[gtp-measure/manifest] module.
 }
 ]
@@ -426,7 +429,7 @@ The @racketmodname[gtp-measure] library includes a few small languages to
  describe data formats.
 
 @defmodulelang[gtp-measure/manifest]{
-  A manifest contains an optional hash with configuration options
+  A @tech[#:key "gtp-manifest-target"]{manifest} contains an optional hash with configuration options
    and a sequence of target descriptors.
 
   The configuration options must be prefixed by the keyword @racket[#:config]
