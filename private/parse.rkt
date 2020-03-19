@@ -16,8 +16,11 @@
   valid-target?
   valid-target?/kind
   valid-file-target?
+  check-file-target
   valid-typed-untyped-target?
+  check-typed-untyped-target
   valid-manifest-target?
+  check-manifest-target
 
   gtp-measure-target
 
@@ -81,16 +84,32 @@
     (valid-manifest-target? str)]))
 
 (define (valid-file-target? str)
-  (and (file-exists? str)
-       (not (gtp-manifest-file? str))))
+  (eq? #true (check-file-target str)))
+
+(define (check-file-target str)
+  (if (file-exists? str)
+    (if (not (gtp-manifest-file? str))
+      #true
+      "expected non-manifest file")
+    "file does not exist"))
 
 (define (valid-typed-untyped-target? str)
-  (and (directory-exists? str)
-       (let ([u-dir (build-path str "untyped")]
-             [t-dir (build-path str "typed")])
-         (and (directory-exists? u-dir)
-              (directory-exists? t-dir)
-              (set=? (racket-filenames u-dir) (racket-filenames t-dir))))))
+  (eq? #true (check-typed-untyped-target str)))
+
+(define (check-typed-untyped-target str)
+  (if (directory-exists? str)
+    (let ([u-dir (build-path str "untyped")]
+          [t-dir (build-path str "typed")])
+      (if (directory-exists? u-dir)
+        (if (directory-exists? t-dir)
+          (let ((u* (racket-filenames u-dir))
+                (t* (racket-filenames t-dir)))
+            (if (set=? u* t*)
+              #true
+              "typed/ and untyped/ sub-directories contain different files"))
+          "typed/ sub-directory does not exist")
+        "untyped/ sub-directory does not exist"))
+    "directory does not exist"))
 
 (define (racket-filenames dir)
   (for/set ([f (in-glob (build-path dir "*.rkt"))])
@@ -103,8 +122,14 @@
   (expt 2 (typed-untyped->num-components tu-dir)))
 
 (define (valid-manifest-target? str)
-  (and (file-exists? str)
-       (gtp-manifest-file? str)))
+  (eq? #true (check-manifest-target str)))
+
+(define (check-manifest-target str)
+  (if (file-exists? str)
+    (if (gtp-manifest-file? str)
+      #true
+      "expected a '#lang gtp-measure/manifest' file")
+    "file does not exist"))
 
 (define (gtp-manifest-file? str)
   (equal? (lang-file-lang str) "gtp-measure/manifest"))

@@ -20,23 +20,25 @@
 
 (define GTPM 'gtp-measure)
 
-(define (assert-valid-file str)
-  (define p (normalize-path str))
-  (if (valid-file-target? p)
-    (path->string p)
-    (raise-argument-error GTPM "valid-file-target?" str)))
+(define (make-target-assert valid? debug name)
+  (lambda (str)
+    (define p (normalize-path str))
+    (if (valid? p)
+      (path->string p)
+      (raise-arguments-error
+        GTPM
+        (format "invalid ~s target" name)
+        "input" str
+        "reason" (debug p)))))
 
-(define (assert-valid-typed-untyped str)
-  (define p (normalize-path str))
-  (if (valid-typed-untyped-target? p)
-    (path->string p)
-    (raise-argument-error GTPM "valid-typed-untyped-target?" str)))
+(define assert-valid-file
+  (make-target-assert valid-file-target? check-file-target "file"))
 
-(define (assert-valid-manifest str)
-  (define p (normalize-path str))
-  (if (valid-manifest-target? p)
-    (path->string p)
-    (raise-argument-error GTPM "valid-manifest-target?" str)))
+(define assert-valid-typed-untyped
+  (make-target-assert valid-typed-untyped-target? check-typed-untyped-target "typed-untyped"))
+
+(define assert-valid-manifest
+  (make-target-assert valid-manifest-target? check-manifest-target "manifest"))
 
 (define (read/ctc str ctc)
   (define v (with-input-from-string str read))
