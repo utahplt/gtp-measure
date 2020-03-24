@@ -41,6 +41,9 @@
     [task->num-unmeasured-programs
       (-> gtp-measure-task/c exact-nonnegative-integer?)]
 
+    [task->config*
+      (-> gtp-measure-task/c (listof gtp-measure-config/c))]
+
     [make-progress-counter
       (->* [natural?] [string?] (-> natural? string?))]
 
@@ -297,6 +300,20 @@
   (for/sum ([pst (in-pre-subtasks t)])
     (pre-subtask->count-programs pst skip-finished?)))
 
+(define (task->config* t)
+  (define base-config (gtp-measure-task-config t))
+  (for/fold ((acc (hash))
+             #:result (hash-keys acc))
+            ((pst (in-pre-subtasks t)))
+    (cond
+     [(or (pre-file-subtask? pst)
+          (pre-typed-untyped-subtask? pst))
+      (hash-set acc base-config #true)]
+     [(pre-manifest-subtask? pst)
+      (hash-set acc (pre-manifest-subtask-update-config pst base-config) #true)]
+     [else
+      (raise-argument-error 'task->config* "pre-subtask?" pst)])))
+
 (define (pre-subtask->count-programs pst skip-finished?)
   (cond
     [(pre-file-subtask? pst)
@@ -378,14 +395,18 @@
          (values in-file out-file)))
      (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)]
     [(pre-manifest-subtask? st)
-     (define m-file (pre-manifest-subtask-manifest-file st))
+     (define config+ (pre-manifest-subtask-update-config st config))
      (define pst* (pre-manifest-subtask-pre-subtask* st))
-     (define config+ (update-config config (manifest->config (string->path m-file))))
      (for*/list ([pst (in-list pst*)]
                  [new-st (in-list (pre-subtask->subtask* pst config+))])
        new-st)]
     [else
      (raise-argument-error 'pre-subtask->subtask "pre-subtask?" 1 config st)]))
+
+(define (pre-manifest-subtask-update-config st old-config)
+  (define m-file (pre-manifest-subtask-manifest-file st))
+  (define m-config (manifest->config (string->path m-file)))
+  (update-config old-config m-config))
 
 (define (file->subtask* in-file out-file config)
   (define thunk
@@ -540,6 +561,7 @@
   (define F-TGT (build-path TEST-DIR "sample-file-target.rkt"))
   (define T-TGT (build-path TEST-DIR "sample-typed-untyped-target"))
   (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
+  (define M-BIN-TGT (build-path TEST-DIR "sample-manifest-target-bin.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
   (define SAMPLE-TASK (build-path TEST-DIR "sample-task"))
   (define TASK-24 (build-path SAMPLE-TASK "24/"))
@@ -827,6 +849,42 @@
                                   1))
     (check-equal? actual-unmeasured
                   (- actual-total 1)))
+
+  (filesystem-test-case "task->config*"
+    (define config (init-config))
+    (define new-bin-str
+      ;; valid path, but different from the default bin path
+      (let* ((old-bin (config-ref config key:bin))
+             (old-bin-name
+              (let-values (((_base name _dir?) (split-path old-bin))) name)))
+        (path->string (build-path old-bin ".." old-bin-name))))
+    (define config-2 (config-set config key:bin new-bin-str))
+    ;; basic task, expect 1 unique config
+    (let ((t0 (init-task (list (cons (path->string F-TGT) kind:file)
+                               (cons (path->string M-TGT) kind:manifest))
+                         config)))
+      (check-equal? (task->config* t0) (list config)))
+    ;; task overrides key:bin, expect 2 configs if have two targets, 1 otherwise
+    (let* ((old-data (file->string M-BIN-TGT))
+           (_0 (with-output-to-file M-BIN-TGT #:exists 'replace
+                 (lambda ()
+                   (printf "#lang gtp-measure/manifest~n")
+                   (printf "#:config #hash((bin . ~s))~n" new-bin-str)
+                   (printf "sample-file-target.rkt~n"))))
+           (cfg1* (task->config*
+                    (init-task (list (cons (path->string M-BIN-TGT) kind:manifest))
+                               config)))
+           (cfg2* (task->config*
+                    (init-task (list (cons (path->string F-TGT) kind:file)
+                                     (cons (path->string M-BIN-TGT) kind:manifest))
+                               config)))
+           (_1 (with-output-to-file M-BIN-TGT #:exists 'replace
+                 (lambda ()
+                   (writeln old-data)))))
+      (check-equal? cfg1* (list config-2))
+      (check-pred (lambda (x) (member config x)) cfg2*)
+      (check-pred (lambda (x) (member config-2 x)) cfg2*)
+      (check-equal? (length cfg2*) 2)))
 
   (filesystem-test-case "count-configurations"
     (define CONFIGS '("01" "10"))

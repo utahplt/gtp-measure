@@ -163,7 +163,8 @@
            (if (eq? mode 'setup)
              (printf "Setup complete ~s~n" new-task)
              (void
-               (check-pkg-deps (config-ref config key:bin) #:auto? #true)
+               (for ((cfg (in-list (task->config* new-task))))
+                 (check-pkg-deps (config-ref cfg key:bin) #:auto? #true))
                (measure new-task)
                (summarize-results new-task)))])]
         [else

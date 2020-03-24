@@ -22,6 +22,7 @@
   CONFIG.RKTD
 
   config-ref
+  config-set
 
   gtp-measure-config/c
 
@@ -143,6 +144,9 @@
 
 (define (config-ref cfg k)
   (hash-ref cfg k))
+
+(define (config-set cfg k v)
+  (hash-set cfg k v))
 
 (define (init-config [cmdline-config #f])
   (update-config
