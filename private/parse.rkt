@@ -16,10 +16,12 @@
   valid-target?
   valid-target?/kind
   valid-file-target?
-  check-file-target
   valid-typed-untyped-target?
-  check-typed-untyped-target
   valid-manifest-target?
+
+  check-target/kind
+  check-file-target
+  check-typed-untyped-target
   check-manifest-target
 
   gtp-measure-target
@@ -82,6 +84,15 @@
     (valid-typed-untyped-target? str)]
    [(eq? kind kind:manifest)
     (valid-manifest-target? str)]))
+
+(define (check-target/kind str kind)
+  (cond
+   [(eq? kind kind:file)
+    (check-file-target str)]
+   [(eq? kind kind:typed-untyped)
+    (check-typed-untyped-target str)]
+   [(eq? kind kind:manifest)
+    (check-manifest-target str)]))
 
 (define (valid-file-target? str)
   (eq? #true (check-file-target str)))

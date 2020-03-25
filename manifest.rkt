@@ -23,7 +23,7 @@
           (only-in racket/path normalize-path path-only)
           (only-in racket/contract define/contract)
           (only-in gtp-measure/private/configure gtp-measure-config/c)
-          (only-in gtp-measure/private/parse valid-target? valid-target?/kind))
+          (only-in gtp-measure/private/parse valid-target? valid-target?/kind check-target/kind))
         (define CWD
           (let ([p (variable-reference->module-source (#%variable-reference))])
             (if (path? p)
@@ -39,9 +39,10 @@
             (if pre-kind
               (if (valid-target?/kind p pre-kind)
                 (cons (path->string p) pre-kind)
-                (raise-arguments-error 'gtp-measure/manifest "kind does not match target"
-                                       "kind" pre-kind
-                                       "target" pre-path))
+                (raise-arguments-error 'gtp-measure/manifest "invalid target"
+                  "target" pre-path
+                  "kind" pre-kind
+                  "reason" (check-target/kind pre-path pre-kind)))
               (let ([kind (valid-target? p)])
                 (if kind
                   (cons (path->string p) kind)
