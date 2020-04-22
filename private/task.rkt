@@ -204,10 +204,12 @@
        (define filename (build-path task-dir (format-target-tag ps i)))
        (write-typed-untyped-checklist ps filename config)]
       [(eq? kind kind:manifest)
-       (define new-targets (manifest->targets (string->path ps)))
+       (define m-path (string->path ps))
+       (define new-targets (manifest->targets m-path))
        (define new-task-dir (build-path task-dir (format-target-tag ps i)))
+       (define new-config (manifest-file-update-config m-path config))
        (make-directory new-task-dir)
-       (write-checklist new-targets config new-task-dir)]
+       (write-checklist new-targets new-config new-task-dir)]
       [else
        (raise-arguments-error 'write-checklist "invalid target kind"
                               "kind" kind
@@ -405,7 +407,10 @@
 
 (define (pre-manifest-subtask-update-config st old-config)
   (define m-file (pre-manifest-subtask-manifest-file st))
-  (define m-config (manifest->config (string->path m-file)))
+  (manifest-file-update-config (string->path m-file) old-config))
+
+(define (manifest-file-update-config m-path old-config)
+  (define m-config (manifest->config m-path))
   (update-config old-config m-config))
 
 (define (file->subtask* in-file out-file config)
