@@ -246,7 +246,7 @@
 
   (test-case "racket-filenames"
     (let ((v (racket-filenames TEST)))
-      (check-equal? (set-count v) 6)
+      (check-equal? (set-count v) 7)
       (check set=? v (set (string->path "infinite-loop-file-target.rkt") (string->path "sample-file-target.rkt") (string->path "sample-manifest-target.rkt") (string->path "sample-manifest-target-config.rkt") (string->path "manifest1.rkt") (string->path "manifest2.rkt")))))
 
   (test-case "manifest->targets"
