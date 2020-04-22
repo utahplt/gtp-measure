@@ -266,8 +266,44 @@
       (sort
         (for/list ([t (in-list pre-targets)])
           (cons (path->string (normalize-path (car t) cwd)) (cdr t)))
-        string<?
-        #:key car))))
+        natural-string<?
+        #:key (compose1 string->natural-str* car)
+        #:cache-keys? #true))))
+
+;; natural sort: like string<? but compare sequences of digits as numbers
+(define (natural-string<? n0* n1*)
+  (let loop ((n0* n0*) (n1* n1*))
+    (cond
+      [(null? n0*)
+       #true]
+      [(null? n1*)
+       #false]
+      [else
+       (define v0 (car n0*))
+       (define v1 (car n1*))
+       (cond
+         [(and (exact-integer? v0)
+               (exact-integer? v1))
+          (or (< v0 v1)
+              (and (= v0 v1) (loop (cdr n0*) (cdr n1*))))]
+         [else
+          (define v0+ (if (exact-integer? v0) (number->string v0) v0))
+          (define v1+ (if (exact-integer? v1) (number->string v1) v1))
+          (or (string<? v0+ v1+)
+              (and (string=? v0+ v1+) (loop (cdr n0*) (cdr n1*))))])])))
+
+(define (string->natural-str* str)
+  (define-values [rev-acc last]
+    (for/fold ([acc '()]
+               [prev 0])
+              ([lo+hi (in-list (regexp-match-positions* #rx"[0-9]+" str))])
+      (values
+        (list*
+          (string->number (substring str (car lo+hi) (cdr lo+hi)))
+          (substring str prev (car lo+hi))
+          acc)
+        (cdr lo+hi))))
+  (reverse (cons (substring str last) rev-acc)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -649,15 +685,33 @@
         (path->string d))))
 
   (test-case "normalize-targets"
+    (define (make-expected . pth*)
+      (for/list ((pth (in-list pth*)))
+        (cons (path->string (normalize-path pth)) kind:file)))
     (let ([p0 F-TGT]
           [p1 T-TGT])
       (check-equal?
         (normalize-targets (list (cons p0 kind:file)))
-        (list (cons (path->string (normalize-path p0)) kind:file)))
+        (make-expected p0))
       (check-equal?
         (normalize-targets (list (cons p1 kind:file) (cons p0 kind:file)))
-        (for/list ([p (in-list (list p0 p1))])
-          (cons (path->string (normalize-path p)) kind:file)))))
+        (make-expected p0 p1)))
+    (let ([p0 (build-path TEST-DIR "2-tgt.rkt")]
+          [p1 (build-path TEST-DIR "11-tgt.rkt")])
+      (check-equal?
+        (normalize-targets (list (cons p0 kind:file) (cons p1 kind:file)))
+        (make-expected p0 p1)))
+    (let ([p0 (build-path TEST-DIR "2-tgt.rkt")]
+          [p1 (build-path TEST-DIR "tgt.rkt")])
+      (check-equal?
+        (normalize-targets (list (cons p0 kind:file) (cons p1 kind:file)))
+        (make-expected p0 p1)))
+    (let ([p0 (build-path TEST-DIR "2-tgt-11.rkt")]
+          [p1 (build-path TEST-DIR "2-tgt-2.rkt")]
+          [p2 (build-path TEST-DIR "3-tgt-1.rkt")])
+      (check-equal?
+        (normalize-targets (list (cons p0 kind:file) (cons p1 kind:file) (cons p2 kind:file)))
+        (make-expected p1 p0 p2))))
 
   (filesystem-test-case "file->subtask*"
     (define test-file (build-path TEST-DIR "test-file->subtask.txt"))
