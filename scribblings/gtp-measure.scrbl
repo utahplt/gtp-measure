@@ -428,6 +428,8 @@ More later.
 The @racketmodname[gtp-measure] library includes a few small languages to
  describe data formats.
 
+@subsection{Manifest = Benchmark Instructions}
+
 @defmodulelang[gtp-measure/manifest]{
   A @tech[#:key "gtp-manifest-target"]{manifest} contains an optional hash with configuration options
    and a sequence of target descriptors.
@@ -458,6 +460,48 @@ The @racketmodname[gtp-measure] library includes a few small languages to
 
 There is an internal syntax class for these ``target descriptors'' that should
  be made public.
+
+
+@subsection{Output Data: File Target}
+
+@defmodulelang[gtp-measure/output/file]{
+  Output data for one @tech{gtp file target}.
+
+  Each line contains a result for one iteration of the file.
+  The result may be:
+  @itemize[
+  @item{
+    successful @racket[time] output, containing the CPU time, real time, and GC time;
+  }
+  @item{
+    a Racket runtime error message;
+  }
+  @item{
+    or a timeout notice (@racket{timeout N}).
+  }]
+
+}
+
+@subsection{Output Data: Typed/Untyped Target}
+
+@defmodulelang[gtp-measure/output/typed-untyped]{
+  Output data for a @tech{gtp typed/untyped target}.
+
+  Each line is the result for one configuration.
+  The first element is the name of the configuration;
+   the second is a sequence of file results.
+
+  Example data from a benchmark that ran with no timeouts or errors:
+
+@codeblock[#:keep-lang-line? #true]{
+#lang gtp-measure/output/typed-untyped
+("00000" ("cpu time: 566 real time: 567 gc time: 62" "cpu time: 577 real time: 578 gc time: 62"))
+("00001" ("cpu time: 820 real time: 822 gc time: 46" "cpu time: 793 real time: 795 gc time: 44"))
+("00010" ("cpu time: 561 real time: 562 gc time: 46" "cpu time: 565 real time: 566 gc time: 44"))
+("00011" ("cpu time: 805 real time: 807 gc time: 47" "cpu time: 813 real time: 815 gc time: 45"))
+....
+}
+}
 
 
 @; -----------------------------------------------------------------------------
