@@ -101,6 +101,7 @@
 
 (define INPUT-EXTENSION #".in")
 (define OUTPUT-EXTENSION #".out")
+(define LANG-PREFIX "gtp-measure/output/")
 
 (define (task-print t port write?)
   (if write?
@@ -451,7 +452,10 @@
 
 (define (file->subtask* in-file out-file config)
   (define thunk
-    (make-file-timer in-file config))
+    (let ([main (make-file-timer in-file config)])
+      (lambda ([out-port (current-output-port)])
+        (write-lang! out-port "file")
+        (main))))
   (list (make-gtp-measure-subtask out-file thunk config)))
 
 (define (typed-untyped->subtask* tu-dir configuration-dir in-file* out-file* config)
@@ -459,6 +463,7 @@
   (for/list ([in-file (in-list in-file*)]
              [out-file (in-list out-file*)])
     (define (thunk [out-port (current-output-port)])
+      (write-lang! out-port "typed-untyped")
       (define total-configs (count-configurations in-file))
       (define fmt (make-progress-counter total-configs "configuration"))
       (with-input-from-file in-file
@@ -588,6 +593,9 @@
   (define (fmt n) (~r n #:min-width num-digits #:pad-string " "))
   (lambda (i)
     (format "[~a~a/~a]" units (fmt i) total)))
+
+(define (write-lang! out-port suffix)
+  (fprintf out-port "#lang ~a~a~n" LANG-PREFIX suffix))
 
 ;; =============================================================================
 
@@ -729,8 +737,9 @@
         (begin0
           (file->lines test-file)
           (delete-file test-file))))
-    (check-equal? (length out-str*) (config-ref config key:iterations))
-    (check-true (andmap time-line? out-str*)))
+    (check-equal? (length out-str*) (+ 1 (config-ref config key:iterations)))
+    (check-equal? (car out-str*) "#lang gtp-measure/output/file")
+    (check-true (andmap time-line? (cdr out-str*))))
 
   (filesystem-test-case "copy-configuration!"
     (define configuration-dir (build-path TEST-DIR "sample-typed-untyped-configuration"))
@@ -771,15 +780,16 @@
                   (delete-directory/files configuration-dir)
                   (delete-file in-file)
                   (delete-file out-file)))))
-    (check-equal? (length out-str*) 4)
+    (check-equal? (length out-str*) 5)
     (check-equal?
       (for/sum ([msg (in-list (hash-ref log-hash 'debug))]
                 #:when (regexp-match? #rx"deleting zo folder" msg))
         1)
-      (length out-str*)
+      (- (length out-str*) 1)
       "missing evidence that 'zo' files deleted between configurations")
+    (check-equal? (car out-str*) "#lang gtp-measure/output/typed-untyped")
     (for ((c (in-list configuration*))
-          (str (in-list out-str*)))
+          (str (in-list (cdr out-str*))))
       (define v
         (with-input-from-string str read))
       (check-pred list? v)
