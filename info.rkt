@@ -1,6 +1,13 @@
 #lang info
 (define collection "gtp-measure")
-(define deps '("base" "lang-file" "scribble-lib" "basedir" "gtp-util" ("sandbox-lib" #:version "1.1")))
+(define deps '(
+  "at-exp-lib"
+  "base"
+  "basedir"
+  "gtp-util"
+  "lang-file"
+  "scribble-lib"
+  ("sandbox-lib" #:version "1.1")))
 (define build-deps '(
   "rackunit-lib"
   "racket-doc"
