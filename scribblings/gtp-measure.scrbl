@@ -491,6 +491,9 @@ There is an internal syntax class for these ``target descriptors'' that should
   The first element is the name of the configuration;
    the second is a sequence of file results.
 
+  Provides an identifier @racketid[gtp-data] that is
+   bound to the full dataset.
+
   Example data from a benchmark that ran with no timeouts or errors:
 
 @codeblock[#:keep-lang-line? #true]{
