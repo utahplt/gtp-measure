@@ -68,6 +68,7 @@
     make-list)
   (only-in racket/string
     string-join
+    string-prefix?
     string-replace)
   (only-in racket/math
     natural?
@@ -362,9 +363,11 @@
     [(pre-typed-untyped-subtask? pst)
      (for/sum ([in-file (in-list (pre-typed-untyped-subtask-in-file* pst))]
                [out-file (in-list (pre-typed-untyped-subtask-out-file* pst))])
-       (if (and skip-finished? (file-exists? out-file))
-         0
-         (count-configurations in-file)))]
+       (define in-configs (count-configurations in-file))
+       (define out-configs (if (file-exists? out-file) (count-data out-file) 0))
+       (if skip-finished?
+         (- in-configs out-configs)
+         in-configs))]
     [(pre-manifest-subtask? pst)
      (for/sum ([pst (in-list (pre-manifest-subtask-pre-subtask* pst))])
        (pre-subtask->count-programs pst skip-finished?))]
@@ -586,6 +589,15 @@
     (lambda ()
       (for/sum ((ln (in-lines)))
         (if (bitstring? ln) 1 0)))))
+
+(define (count-data filename)
+  (with-input-from-file filename
+    (lambda ()
+      (define *first (box #true))
+      (for/sum ((ln (in-lines))
+                #:unless (begin0 (and (unbox *first) (string-prefix? ln "#lang"))
+                                 (set-box! *first #false)))
+        1))))
 
 (define (make-progress-counter total [unit-str #f])
   (define units (if unit-str (string-append unit-str " ") ""))
