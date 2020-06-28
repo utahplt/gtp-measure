@@ -363,16 +363,22 @@
     [(pre-typed-untyped-subtask? pst)
      (for/sum ([in-file (in-list (pre-typed-untyped-subtask-in-file* pst))]
                [out-file (in-list (pre-typed-untyped-subtask-out-file* pst))])
-       (define in-configs (count-configurations in-file))
-       (define out-configs (if (file-exists? out-file) (count-data out-file) 0))
-       (if skip-finished?
-         (- in-configs out-configs)
-         in-configs))]
+       (typed-untyped->count-programs in-file out-file skip-finished?))]
     [(pre-manifest-subtask? pst)
      (for/sum ([pst (in-list (pre-manifest-subtask-pre-subtask* pst))])
        (pre-subtask->count-programs pst skip-finished?))]
     [else
      (raise-arguments-error 'pre-subtask->count-programs "undefined for subtask" "subtask" pst)]))
+
+(define (typed-untyped->count-programs in-file out-file skip-finished?)
+  (define in-configs (count-configurations in-file))
+  (if skip-finished?
+    (let ([out-configs (count-data out-file)])
+      (- in-configs out-configs))
+    in-configs))
+
+(define (typed-untyped-finished? in-file out-file)
+  (zero? (typed-untyped->count-programs in-file out-file #true)))
 
 (define (in-subtasks t)
   ;; TODO better to be lazy
@@ -433,7 +439,7 @@
        (for/lists (_1 _2)
                   ([in-file (in-list (pre-typed-untyped-subtask-in-file* st))]
                    [out-file (in-list (pre-typed-untyped-subtask-out-file* st))]
-                   #:when (not (file-exists? out-file)))
+                   #:unless (typed-untyped-finished? in-file out-file))
          (values in-file out-file)))
      (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)]
     [(pre-manifest-subtask? st)
@@ -465,14 +471,19 @@
   (define entry-file (path->string (build-path configuration-dir (config-ref config key:entry-point))))
   (for/list ([in-file (in-list in-file*)]
              [out-file (in-list out-file*)])
+    (define total-configs (count-configurations in-file))
+    (define configs-done (count-data out-file))
+    (define empty-out? (file-empty? out-file))
     (define (thunk [out-port (current-output-port)])
-      (write-lang! out-port "typed-untyped")
-      (define total-configs (count-configurations in-file))
+      (when (and (zero? configs-done) empty-out?)
+        (write-lang! out-port "typed-untyped"))
       (define fmt (make-progress-counter total-configs "configuration"))
       (with-input-from-file in-file
         (lambda ()
+          (void ;; skip already-done configs
+            (for ([_ (in-lines)] [i (in-range configs-done)]) (void)))
           (for ([configuration-id (in-lines)]
-                [cfg-i (in-naturals 1)])
+                [cfg-i (in-naturals (+ 1 configs-done))])
             (log-gtp-measure-info "~a ~a" (fmt cfg-i) configuration-id)
             (copy-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
@@ -582,7 +593,7 @@
 (define (subtask-run! st)
   (define run! (gtp-measure-subtask-thunk st))
   (define outfile (gtp-measure-subtask-out st))
-  (with-output-to-file outfile #:exists 'error run!))
+  (with-output-to-file outfile #:exists 'append run!))
 
 (define (count-configurations filename)
   (with-input-from-file filename
@@ -591,13 +602,19 @@
         (if (bitstring? ln) 1 0)))))
 
 (define (count-data filename)
-  (with-input-from-file filename
-    (lambda ()
-      (define *first (box #true))
-      (for/sum ((ln (in-lines))
-                #:unless (begin0 (and (unbox *first) (string-prefix? ln "#lang"))
-                                 (set-box! *first #false)))
-        1))))
+  (if (file-exists? filename)
+    (with-input-from-file filename
+      (lambda ()
+        (define *first (box #true))
+        (for/sum ((ln (in-lines))
+                  #:unless (begin0 (and (unbox *first) (string-prefix? ln "#lang"))
+                                   (set-box! *first #false)))
+          1)))
+    0))
+
+(define (file-empty? fn)
+  (or (not (file-exists? fn))
+      (zero? (file-size fn))))
 
 (define (make-progress-counter total [unit-str #f])
   (define units (if unit-str (string-append unit-str " ") ""))
