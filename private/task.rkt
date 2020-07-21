@@ -104,6 +104,10 @@
 (define OUTPUT-EXTENSION #".out")
 (define LANG-PREFIX "gtp-measure/output/")
 
+(define *target-tag-width* (make-parameter 0))
+;; *target-tag-width* = minimum length of prefix on output files,
+;;  for example, helps pad `1-a.in` to `001-a.in`
+
 (define (task-print t port write?)
   (if write?
     (fprintf port
@@ -196,29 +200,42 @@
   filename)
 
 (define (write-checklist targets config task-dir)
-  (for ((tgt (in-list targets))
-        (i (in-naturals)))
-    (define-values [ps kind] (values (car tgt) (cdr tgt)))
-    (cond
-      [(eq? kind kind:file)
-       (void)]
-      [(eq? kind kind:typed-untyped)
-       (define filename (build-path task-dir (format-target-tag ps i)))
-       (write-typed-untyped-checklist ps filename config)]
-      [(eq? kind kind:manifest)
-       (define m-path (string->path ps))
-       (define new-targets (manifest->targets m-path))
-       (define new-task-dir (build-path task-dir (format-target-tag ps i)))
-       (define new-config (manifest-file-update-config m-path config))
-       (make-directory new-task-dir)
-       (write-checklist new-targets new-config new-task-dir)]
-      [else
-       (raise-arguments-error 'write-checklist "invalid target kind"
-                              "kind" kind
-                              "targets" targets)])))
+  (parameterize ((*target-tag-width* (make-tag-width (length targets))))
+    (for ((tgt (in-list targets))
+          (i (in-naturals)))
+      (define-values [ps kind] (values (car tgt) (cdr tgt)))
+      (cond
+        [(eq? kind kind:file)
+         (void)]
+        [(eq? kind kind:typed-untyped)
+         (define filename (build-path task-dir (format-target-tag ps i)))
+         (write-typed-untyped-checklist ps filename config)]
+        [(eq? kind kind:manifest)
+         (define m-path (string->path ps))
+         (define new-targets (manifest->targets m-path))
+         (define new-task-dir (build-path task-dir (format-target-tag ps i)))
+         (define new-config (manifest-file-update-config m-path config))
+         (make-directory new-task-dir)
+         (write-checklist new-targets new-config new-task-dir)]
+        [else
+         (raise-arguments-error 'write-checklist "invalid target kind"
+                                "kind" kind
+                                "targets" targets)]))))
 
-(define (format-target-tag str i)
-  (format "~a-~a" i (path->string (file-name-from-path str))))
+(define (make-tag-width n)
+  (+ 1 (order-of-magnitude n)))
+
+(define (format-target-tag str i [pre-tag-width #f])
+  (define tag-width (or pre-tag-width (*target-tag-width*)))
+  (define prefix
+    (let* ((p (number->string i))
+           (chars-left (- tag-width (string-length p))))
+      (if (< 0 chars-left)
+        (string-append (make-string chars-left #\0) p)
+        p)))
+  (define suffix
+    (path->string (file-name-from-path str)))
+  (string-append prefix "-" suffix))
 
 (define (path-remove-extension ps)
   (path-replace-extension ps #""))
@@ -393,9 +410,10 @@
   (pre-subtasks/internal target* task-dir))
 
 (define (pre-subtasks/internal target* task-dir)
-  (for/list ([tgt (in-list target*)]
-             [idx (in-naturals)])
-    (target->pre-subtask idx tgt task-dir)))
+  (parameterize ((*target-tag-width* (make-tag-width (length target*))))
+    (for/list ([tgt (in-list target*)]
+               [idx (in-naturals)])
+      (target->pre-subtask idx tgt task-dir))))
 
 (define (target->pre-subtask target-index target task-dir)
   (define tgt (car target))
@@ -700,7 +718,18 @@
       "17-bar")
     (check-equal?
       (format-target-tag "foo/bar.blah/baz" 17)
-      "17-baz"))
+      "17-baz")
+    (parameterize ((*target-tag-width* 3))
+      (check-equal?
+        (format-target-tag "foo/bar" 17)
+        "017-bar"))
+    (check-equal?
+      (format-target-tag "foo/bar.blah/baz" 17 4)
+      "0017-baz")
+    (check-equal?
+      (format-target-tag "foo/bar.blah/baz" 17 0)
+      "17-baz")
+    )
 
   (test-case "path-remove-extension"
     (check-equal?
@@ -978,7 +1007,7 @@
                                config)))
            (_1 (with-output-to-file M-BIN-TGT #:exists 'replace
                  (lambda ()
-                   (writeln old-data)))))
+                   (display old-data)))))
       (check-equal? cfg1* (list config-2))
       (check-pred (lambda (x) (member config x)) cfg2*)
       (check-pred (lambda (x) (member config-2 x)) cfg2*)
