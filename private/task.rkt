@@ -210,6 +210,9 @@
         [(eq? kind kind:typed-untyped)
          (define filename (build-path task-dir (format-target-tag ps i)))
          (write-typed-untyped-checklist ps filename config)]
+        [(eq? kind kind:deep-shallow-untyped)
+         (define filename (build-path task-dir (format-target-tag ps i)))
+         (write-deep-shallow-untyped-checklist ps filename config)]
         [(eq? kind kind:manifest)
          (define m-path (string->path ps))
          (define new-targets (manifest->targets m-path))
@@ -270,6 +273,49 @@
           (lambda ()
             (for ((i (in-range sample-size)))
               (displayln (natural->bitstring (random num-configurations) #:bits num-components)))))))))
+
+(define (write-deep-shallow-untyped-checklist tu-path base-filename config)
+  (define num-components (deep-shallow-untyped->num-components tu-path))
+  (define exhaustive? (<= num-components (config-ref config key:cutoff)))
+  (define num-configurations (expt 2 num-components))
+  (void ;; setup config/base/both directories
+    (make-directory base-filename)
+    (make-directory (build-path base-filename CONFIG))
+    (let ([base (build-path tu-path BASE)])
+      (when (directory-exists? base)
+        (copy-directory/files base (build-path base-filename BASE))))
+    (let ([both (build-path tu-path BOTH)])
+      (when (directory-exists? both)
+        (copy-racket-file* both (build-path base-filename CONFIG)))))
+  (if exhaustive?
+    (let ([filename (path-add-extension base-filename INPUT-EXTENSION #".")])
+      (with-output-to-file filename #:exists 'error
+        (lambda ()
+          (displayln (natural->bitstring 0 #:bits num-components))
+          (for ((i (in-range 1 num-configurations)))
+            (define bs (natural->bitstring i #:bits num-components))
+            (define num-hi (num-hi-bits bs))
+            (for ((j (in-range (expt 2 num-hi))))
+              (define sub-bs (string->list (natural->bitstring j #:bits num-hi)))
+              (displayln
+                (apply string
+                       (for/list ((c (in-string bs)))
+                         (cond
+                          [(eq? #\0 c)
+                           #\0]
+                          [(and (eq? #\1 c) (eq? #\1 (car sub-bs)))
+                           (set! sub-bs (cdr sub-bs))
+                           #\2]
+                          [(and (eq? #\1 c) (eq? #\0 (car sub-bs)))
+                           (set! sub-bs (cdr sub-bs))
+                           #\1]
+                          [else
+                           (raise-arguments-error 'deep-shallow-untyped "bad news making checklist")])))))))))
+    (raise-argument-error 'deep-shallow-untyped "exhaustive")))
+
+(define (num-hi-bits bs)
+  (for/sum ((c (in-string bs)))
+    (if (eq? #\1 c) 1 0)))
 
 (define (fresh-uid config)
   (define dir (config-ref config key:working-directory))
@@ -340,6 +386,9 @@
 (struct pre-typed-untyped-subtask pre-subtask [tu-dir config-dir in-file* out-file*]
   #:extra-constructor-name make-pre-typed-untyped-subtask
   #:transparent)
+(struct pre-deep-shallow-untyped-subtask pre-subtask [tu-dir config-dir in-file* out-file*]
+  #:extra-constructor-name make-pre-deep-shallow-untyped-subtask
+  #:transparent)
 (struct pre-manifest-subtask pre-subtask [manifest-file pre-subtask*]
   #:extra-constructor-name make-pre-manifest-subtask
   #:transparent)
@@ -364,7 +413,8 @@
             ((pst (in-pre-subtasks t)))
     (cond
      [(or (pre-file-subtask? pst)
-          (pre-typed-untyped-subtask? pst))
+          (pre-typed-untyped-subtask? pst)
+          (pre-deep-shallow-untyped-subtask? pst))
       (hash-set acc base-config #true)]
      [(pre-manifest-subtask? pst)
       (hash-set acc (pre-manifest-subtask-update-config pst base-config) #true)]
@@ -381,6 +431,10 @@
      (for/sum ([in-file (in-list (pre-typed-untyped-subtask-in-file* pst))]
                [out-file (in-list (pre-typed-untyped-subtask-out-file* pst))])
        (typed-untyped->count-programs in-file out-file skip-finished?))]
+    [(pre-deep-shallow-untyped-subtask? pst)
+     (for/sum ([in-file (in-list (pre-deep-shallow-untyped-subtask-in-file* pst))]
+               [out-file (in-list (pre-deep-shallow-untyped-subtask-out-file* pst))])
+       (deep-shallow-untyped->count-programs in-file out-file skip-finished?))]
     [(pre-manifest-subtask? pst)
      (for/sum ([pst (in-list (pre-manifest-subtask-pre-subtask* pst))])
        (pre-subtask->count-programs pst skip-finished?))]
@@ -394,8 +448,14 @@
       (- in-configs out-configs))
     in-configs))
 
+(define (deep-shallow-untyped->count-programs in-file out-file skip-finished?)
+  (typed-untyped->count-programs in-file out-file skip-finished?))
+
 (define (typed-untyped-finished? in-file out-file)
   (zero? (typed-untyped->count-programs in-file out-file #true)))
+
+(define (deep-shallow-untyped-finished? in-file out-file)
+  (typed-untyped-finished? in-file out-file))
 
 (define (in-subtasks t)
   ;; TODO better to be lazy
@@ -431,6 +491,15 @@
     (define config-dir
       (build-path task-dir (format-target-tag tgt target-index) CONFIG))
     (make-pre-typed-untyped-subtask tgt config-dir in-file* out-file*)]
+   [(eq? tgt-kind kind:deep-shallow-untyped)
+    (define in-file*
+      (glob (build-path task-dir (string-append (format-target-tag tgt target-index) (format "*~a" INPUT-EXTENSION)))))
+    (define out-file*
+      (for/list ([f (in-list in-file*)])
+        (path-replace-extension f OUTPUT-EXTENSION)))
+    (define config-dir
+      (build-path task-dir (format-target-tag tgt target-index) CONFIG))
+    (make-pre-deep-shallow-untyped-subtask tgt config-dir in-file* out-file*)]
    [(eq? tgt-kind kind:manifest)
     (define new-targets (manifest->targets (string->path tgt)))
     (define new-task-dir (build-path task-dir (format-target-tag tgt target-index)))
@@ -460,6 +529,16 @@
                    #:unless (typed-untyped-finished? in-file out-file))
          (values in-file out-file)))
      (typed-untyped->subtask* tu-dir config-dir in-file* out-file* config)]
+    [(pre-deep-shallow-untyped-subtask? st)
+     (define tu-dir (pre-deep-shallow-untyped-subtask-tu-dir st))
+     (define config-dir (pre-deep-shallow-untyped-subtask-config-dir st))
+     (define-values [in-file* out-file*]
+       (for/lists (_1 _2)
+                  ([in-file (in-list (pre-deep-shallow-untyped-subtask-in-file* st))]
+                   [out-file (in-list (pre-deep-shallow-untyped-subtask-out-file* st))]
+                   #:unless (deep-shallow-untyped-finished? in-file out-file))
+         (values in-file out-file)))
+     (deep-shallow-untyped->subtask* tu-dir config-dir in-file* out-file* config)]
     [(pre-manifest-subtask? st)
      (define config+ (pre-manifest-subtask-update-config st config))
      (define pst* (pre-manifest-subtask-pre-subtask* st))
@@ -512,6 +591,33 @@
               (close-input-port configuration-in))))))
     (make-gtp-measure-subtask out-file thunk config)))
 
+(define (deep-shallow-untyped->subtask* tu-dir configuration-dir in-file* out-file* config)
+  (define entry-file (path->string (build-path configuration-dir (config-ref config key:entry-point))))
+  (for/list ([in-file (in-list in-file*)]
+             [out-file (in-list out-file*)])
+    (define total-configs (count-configurations in-file))
+    (define configs-done (count-data out-file))
+    (define empty-out? (file-empty? out-file))
+    (define (thunk [out-port (current-output-port)])
+      (when (and (zero? configs-done) empty-out?)
+        (write-lang! out-port "deep-shallow-untyped"))
+      (define fmt (make-progress-counter total-configs "configuration"))
+      (with-input-from-file in-file
+        (lambda ()
+          (void ;; skip already-done configs
+            (for ([_ (in-lines)] [i (in-range configs-done)]) (void)))
+          (for ([configuration-id (in-lines)]
+                [cfg-i (in-naturals (+ 1 configs-done))])
+            (log-gtp-measure-info "~a ~a" (fmt cfg-i) configuration-id)
+            (copy-configuration! configuration-id tu-dir configuration-dir)
+            (define-values [configuration-in configuration-out] (make-pipe))
+            (void
+              ((make-file-timer entry-file config) configuration-out)
+              (close-output-port configuration-out)
+              (writeln (list configuration-id (port->lines configuration-in)) out-port)
+              (close-input-port configuration-in))))))
+    (make-gtp-measure-subtask out-file thunk config)))
+
 (define (delete-compiled! dir)
   (define compiled (build-path dir "compiled"))
   (log-gtp-measure-debug "deleting zo folder ~a" compiled)
@@ -520,6 +626,7 @@
 (define (copy-configuration! configuration-id src-dir dst-dir)
   (define t-dir (build-path src-dir TYPED))
   (define u-dir (build-path src-dir UNTYPED))
+  (define s-dir (build-path src-dir ".." (format "tag_~a" (path->string (file-name-from-path src-dir))) TYPED))
   (for ([t-file (filename-sort (set->list (racket-filenames t-dir)))]
         [u-file (filename-sort (set->list (racket-filenames u-dir)))]
         [bit (in-string configuration-id)])
@@ -528,7 +635,7 @@
                              "untyped file" u-file
                              "typed file" t-file
                              "directory" src-dir))
-    (copy-file (build-path (if (eq? #\1 bit) t-dir u-dir) t-file)
+    (copy-file (build-path (if (eq? #\1 bit) t-dir (if (eq? #\2 bit) s-dir u-dir)) t-file)
                (build-path dst-dir t-file)
                #true)))
 
@@ -617,7 +724,11 @@
   (with-input-from-file filename
     (lambda ()
       (for/sum ((ln (in-lines)))
-        (if (bitstring? ln) 1 0)))))
+        (if (weak-bitstring? ln) 1 0)))))
+
+(define (weak-bitstring? str)
+  (for/and ((c (in-string str)))
+    (or (eq? c #\0) (eq? c #\1) (eq? c #\2))))
 
 (define (count-data filename)
   (if (file-exists? filename)
