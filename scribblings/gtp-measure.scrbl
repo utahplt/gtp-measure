@@ -136,6 +136,36 @@ A @deftech{gtp-measure target} is either:
   @deftech{gtp manifest target} :
   a file containing a @racketmodname[gtp-measure/manifest] module.
 }
+@item{
+  @deftech{gtp deep/shallow/untyped target} :
+  a directory
+   containing: (1) a @filepath{typed} directory, (2) an @filepath{untyped} directory,
+   (3) a @filepath{shallow} directory,
+   (4) optionally a @filepath{base} directory, and (5) optionally a @filepath{both} directory.
+  @itemlist[
+  @item{
+    The @filepath{typed} and @filepath{untyped} directories must follow the same
+    guidelines as for a @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target}.
+  }
+  @item{
+    The @filepath{shallow} directory must contain matching typed modules
+    in Transient mode (@tt{#lang typed/racket #:transient}).
+  }
+  @item{
+    The optional @filepath{base} directory may contain data files that the
+     @filepath{typed} and @filepath{untyped} modules may reference via a
+     relative path (e.g. @filepath{../base/file.rkt})
+  }
+  @item{
+    The optional @filepath{both} directory may contain modules that the
+     @filepath{typed} and @filepath{untyped} modules may reference as if they
+     were in the same directory (e.g. @filepath{file.rkt}).
+    If so, the @filepath{typed} and @filepath{untyped} modules will not compile
+     unless the @filepath{both} modules are copied into their directory.
+    This is @seclink["gtp-typed/untyped-design"]{by design}.
+  }
+  ]
+}
 ]
 
 To measure a @tech[#:key "gtp-file-target"]{file target},
@@ -155,6 +185,9 @@ The sequence of configurations is either
 
 To measure a manifest target, @racketmodname[gtp-measure] runs the targets
  listed in the manifest.
+
+To measure a @tech[#:key "gtp-deep/shallow/untyped-target"]{deep/shallow/untyped target},
+ the protocol is similar to @tech[#:key "gtp-typed/untyped-target"]{typed/untyped targets}.
 
 
 @subsection{Typed/Untyped Configuration}
@@ -502,6 +535,36 @@ There is an internal syntax class for these ``target descriptors'' that should
 ("00001" ("cpu time: 820 real time: 822 gc time: 46" "cpu time: 793 real time: 795 gc time: 44"))
 ("00010" ("cpu time: 561 real time: 562 gc time: 46" "cpu time: 565 real time: 566 gc time: 44"))
 ("00011" ("cpu time: 805 real time: 807 gc time: 47" "cpu time: 813 real time: 815 gc time: 45"))
+....
+}
+}
+
+@subsection{Output Data: Deep/Shallow/Untyped Target}
+
+@defmodulelang[gtp-measure/output/deep-shallow-untyped]{
+  Output data for a @tech{gtp deep/shallow/untyped target}.
+
+  Each line is the result for one configuration.
+  The first element is the name of the configuration;
+   the second is a sequence of file results.
+
+  Provides an identifier @racketid[gtp-data] that is
+   bound to the full dataset.
+
+  Example data from a benchmark that ran with no timeouts or errors:
+
+@codeblock[#:keep-lang-line? #true]{
+#lang gtp-measure/output/deep-shallow-untyped
+("00000" ("cpu time: 325 real time: 325 gc time: 60"))
+("00001" ("cpu time: 336 real time: 336 gc time: 64"))
+("00002" ("cpu time: 332 real time: 332 gc time: 64"))
+("00010" ("cpu time: 7059 real time: 7061 gc time: 70"))
+("00020" ("cpu time: 410 real time: 410 gc time: 64"))
+("00011" ("cpu time: 7119 real time: 7121 gc time: 76"))
+("00012" ("cpu time: 7035 real time: 7037 gc time: 76"))
+("00021" ("cpu time: 426 real time: 426 gc time: 63"))
+("00022" ("cpu time: 433 real time: 433 gc time: 77"))
+("00100" ("cpu time: 7154 real time: 7158 gc time: 80"))
 ....
 }
 }

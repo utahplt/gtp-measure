@@ -37,6 +37,9 @@
 (define assert-valid-typed-untyped
   (make-target-assert valid-typed-untyped-target? check-typed-untyped-target "typed-untyped"))
 
+(define assert-valid-deep-shallow-untyped
+  (make-target-assert valid-deep-shallow-untyped-target? check-deep-shallow-untyped-target "deep-shallow-untyped"))
+
 (define assert-valid-manifest
   (make-target-assert valid-manifest-target? check-manifest-target "manifest"))
 
@@ -117,6 +120,7 @@
     #:multi
     [("-f" "--file") fname "target: file" (add-target! (assert-valid-file fname) kind:file)]
     [("-t" "--typed-untyped") dir "target: typed/untyped directory" (add-target! (assert-valid-typed-untyped dir) kind:typed-untyped)]
+    [("--deep-shallow-untyped") dir "target: deep-shallow-untyped directory" (add-target! (assert-valid-deep-shallow-untyped dir) kind:deep-shallow-untyped)]
     [("-m" "--manifest") manifest "target: manifest" (add-target! (assert-valid-manifest manifest) kind:manifest)]
     #:once-each
     [("-i" "--iterations") iters "Number of iterations" (set-config! key:iterations (read/ctc iters exact-positive-integer?))]

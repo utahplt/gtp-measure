@@ -8,6 +8,7 @@
   GTP-MEASURE-CONFIG-ID
 
   kind:typed-untyped
+  kind:deep-shallow-untyped
   kind:file
   kind:manifest
 
@@ -17,11 +18,13 @@
   valid-target?/kind
   valid-file-target?
   valid-typed-untyped-target?
+  valid-deep-shallow-untyped-target?
   valid-manifest-target?
 
   check-target/kind
   check-file-target
   check-typed-untyped-target
+  check-deep-shallow-untyped-target
   check-manifest-target
 
   gtp-measure-target
@@ -29,8 +32,10 @@
   gtp-measure-target/c
 
   typed-untyped->num-components
+  deep-shallow-untyped->num-components
 
   typed-untyped->num-configurations
+  deep-shallow-untyped->num-configurations
 
   racket-filenames
 
@@ -62,11 +67,12 @@
 (define GTP-MEASURE-CONFIG-ID 'gtp-measure-config)
 
 (define kind:typed-untyped 'typed-untyped)
+(define kind:deep-shallow-untyped 'deep-shallow-untyped)
 (define kind:file 'file)
 (define kind:manifest 'manifest)
 
 (define gtp-measure-kind/c
-  (or/c kind:typed-untyped kind:file kind:manifest))
+  (or/c kind:deep-shallow-untyped kind:typed-untyped kind:file kind:manifest))
 
 (define gtp-measure-target/c
   (cons/c string? gtp-measure-kind/c))
@@ -74,6 +80,7 @@
 (define (valid-target? str)
   (or (and (valid-file-target? str) kind:file)
       (and (valid-typed-untyped-target? str) kind:typed-untyped)
+      (and (valid-deep-shallow-untyped-target? str) kind:deep-shallow-untyped)
       (and (valid-manifest-target? str) kind:manifest)))
 
 (define (valid-target?/kind str kind)
@@ -82,6 +89,8 @@
     (valid-file-target? str)]
    [(eq? kind kind:typed-untyped)
     (valid-typed-untyped-target? str)]
+   [(eq? kind kind:deep-shallow-untyped)
+    (valid-deep-shallow-untyped-target? str)]
    [(eq? kind kind:manifest)
     (valid-manifest-target? str)]))
 
@@ -91,6 +100,8 @@
     (check-file-target str)]
    [(eq? kind kind:typed-untyped)
     (check-typed-untyped-target str)]
+   [(eq? kind kind:deep-shallow-untyped)
+    (check-deep-shallow-untyped-target str)]
    [(eq? kind kind:manifest)
     (check-manifest-target str)]))
 
@@ -107,6 +118,9 @@
 (define (valid-typed-untyped-target? str)
   (eq? #true (check-typed-untyped-target str)))
 
+(define (valid-deep-shallow-untyped-target? str)
+  (eq? #true (check-deep-shallow-untyped-target str)))
+
 (define (check-typed-untyped-target str)
   (if (directory-exists? str)
     (let ([u-dir (build-path str "untyped")]
@@ -122,6 +136,20 @@
         "untyped/ sub-directory does not exist"))
     "directory does not exist"))
 
+(define (check-deep-shallow-untyped-target str)
+  (define tu (check-typed-untyped-target str))
+  (if (string? tu)
+    tu
+    (let* ((fn (path->string (file-name-from-path str)))
+           (s-dir (build-path str ".." (format "tag_~a" fn) "typed")))
+      (if (directory-exists? s-dir)
+        (let ((t* (racket-filenames (build-path str "typed")))
+              (s* (racket-filenames s-dir)))
+          (if (set=? s* t*)
+            #true
+            "typed/ and tag dirs contain different files"))
+        "tag dir does not exist"))))
+
 (define (racket-filenames dir)
   (for/set ([f (in-glob (build-path dir "*.rkt"))])
     (file-name-from-path f)))
@@ -129,8 +157,14 @@
 (define (typed-untyped->num-components tu-dir)
   (set-count (racket-filenames (build-path tu-dir "typed"))))
 
+(define (deep-shallow-untyped->num-components tu-dir)
+  (typed-untyped->num-components tu-dir))
+
 (define (typed-untyped->num-configurations tu-dir)
   (expt 2 (typed-untyped->num-components tu-dir)))
+
+(define (deep-shallow-untyped->num-configurations tu-dir)
+  (expt 3 (deep-shallow-untyped->num-components tu-dir)))
 
 (define (valid-manifest-target? str)
   (eq? #true (check-manifest-target str)))
