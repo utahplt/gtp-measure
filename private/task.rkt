@@ -98,6 +98,7 @@
 (define BASE "base")
 (define BOTH "both")
 (define TYPED "typed")
+(define SHALLOW "shallow")
 (define UNTYPED "untyped")
 
 (define INPUT-EXTENSION #".in")
@@ -626,7 +627,7 @@
 (define (copy-configuration! configuration-id src-dir dst-dir)
   (define t-dir (build-path src-dir TYPED))
   (define u-dir (build-path src-dir UNTYPED))
-  (define s-dir (build-path src-dir ".." (format "tag_~a" (path->string (file-name-from-path src-dir))) TYPED))
+  (define s-dir (build-path src-dir SHALLOW))
   (for ([t-file (filename-sort (set->list (racket-filenames t-dir)))]
         [u-file (filename-sort (set->list (racket-filenames u-dir)))]
         [bit (in-string configuration-id)])
