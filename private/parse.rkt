@@ -141,7 +141,7 @@
   (if (string? tu)
     tu
     (let* ((fn (path->string (file-name-from-path str)))
-           (s-dir (build-path str ".." (format "tag_~a" fn) "typed")))
+           (s-dir (build-path str "shallow")))
       (if (directory-exists? s-dir)
         (let ((t* (racket-filenames (build-path str "typed")))
               (s* (racket-filenames s-dir)))
