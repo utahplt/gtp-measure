@@ -223,7 +223,7 @@
                                 "targets" targets)]))))
 
 (define (make-tag-width n)
-  (+ 1 (order-of-magnitude n)))
+  (+ 1 (if (zero? n) 0 (order-of-magnitude n))))
 
 (define (format-target-tag str i [pre-tag-width #f])
   (define tag-width (or pre-tag-width (*target-tag-width*)))
