@@ -79,8 +79,8 @@
 
 (define (valid-target? str)
   (or (and (valid-file-target? str) kind:file)
-      (and (valid-typed-untyped-target? str) kind:typed-untyped)
       (and (valid-deep-shallow-untyped-target? str) kind:deep-shallow-untyped)
+      (and (valid-typed-untyped-target? str) kind:typed-untyped)
       (and (valid-manifest-target? str) kind:manifest)))
 
 (define (valid-target?/kind str kind)
@@ -141,14 +141,14 @@
   (if (string? tu)
     tu
     (let* ((fn (path->string (file-name-from-path str)))
-           (s-dir (build-path str ".." (format "tag_~a" fn) "typed")))
+           (s-dir (build-path str "shallow")))
       (if (directory-exists? s-dir)
         (let ((t* (racket-filenames (build-path str "typed")))
               (s* (racket-filenames s-dir)))
           (if (set=? s* t*)
             #true
-            "typed/ and tag dirs contain different files"))
-        "tag dir does not exist"))))
+            "typed/ and shallow/ dirs contain different files"))
+        "shallow/ dir does not exist"))))
 
 (define (racket-filenames dir)
   (for/set ([f (in-glob (build-path dir "*.rkt"))])
@@ -230,6 +230,7 @@
   (define TEST (simplify-path (build-path CWD "test")))
   (define F-TGT (simplify-path (build-path TEST "sample-file-target.rkt")))
   (define TU-TGT (simplify-path (build-path TEST "sample-typed-untyped-target")))
+  (define DSU-TGT (simplify-path (build-path TEST "sample-deep-shallow-untyped-target")))
   (define M-TGT (simplify-path (build-path TEST "sample-manifest-target.rkt")))
   (define M-TGT/config (simplify-path (build-path TEST "sample-manifest-target-config.rkt")))
 
@@ -241,6 +242,9 @@
       (valid-target? TU-TGT)
       kind:typed-untyped)
     (check-equal?
+      (valid-target? DSU-TGT)
+      kind:deep-shallow-untyped)
+    (check-equal?
       (valid-target? M-TGT)
       kind:manifest))
 
@@ -251,6 +255,8 @@
       (valid-target?/kind F-TGT kind:typed-untyped))
     (check-true
       (valid-target?/kind TU-TGT kind:typed-untyped))
+    (check-true
+      (valid-target?/kind DSU-TGT kind:deep-shallow-untyped))
     (check-false
       (valid-target?/kind TU-TGT kind:manifest)))
 
@@ -260,6 +266,8 @@
     (check-false
       (valid-file-target? TU-TGT))
     (check-false
+      (valid-file-target? DSU-TGT))
+    (check-false
       (valid-file-target? M-TGT)))
 
   (test-case "valid-typed-untyped-target?"
@@ -267,21 +275,42 @@
       (valid-typed-untyped-target? F-TGT))
     (check-true
       (valid-typed-untyped-target? TU-TGT))
+    (check-true
+      (valid-typed-untyped-target? DSU-TGT))
     (check-false
       (valid-typed-untyped-target? M-TGT)))
+
+  (test-case "valid-deep-shallow-untyped-target?"
+    (check-false
+      (valid-deep-shallow-untyped-target? F-TGT))
+    (check-false
+      (valid-deep-shallow-untyped-target? TU-TGT))
+    (check-true
+      (valid-deep-shallow-untyped-target? DSU-TGT))
+    (check-false
+      (valid-deep-shallow-untyped-target? M-TGT)))
 
   (test-case "valid-manifest-target?"
     (check-false
       (valid-manifest-target? F-TGT))
     (check-false
       (valid-manifest-target? TU-TGT))
+    (check-false
+      (valid-manifest-target? DSU-TGT))
     (check-true
       (valid-manifest-target? M-TGT)))
 
   (test-case "racket-filenames"
     (let ((v (racket-filenames TEST)))
-      (check-equal? (set-count v) 7)
-      (check set=? v (set (string->path "infinite-loop-file-target.rkt") (string->path "sample-file-target.rkt") (string->path "sample-manifest-target.rkt") (string->path "sample-manifest-target-bin.rkt") (string->path "sample-manifest-target-config.rkt") (string->path "manifest1.rkt") (string->path "manifest2.rkt")))))
+      (check-equal? (set-count v) 8)
+      (check set=? v (set (string->path "infinite-loop-file-target.rkt")
+                          (string->path "sample-file-target.rkt")
+                          (string->path "sample-manifest-target.rkt")
+                          (string->path "sample-manifest-target-bin.rkt")
+                          (string->path "sample-manifest-target-config.rkt")
+                          (string->path "manifest1.rkt")
+                          (string->path "manifest2.rkt")
+                          (string->path "manifest-empty.rkt")))))
 
   (test-case "manifest->targets"
     (check-equal? (manifest->targets M-TGT)

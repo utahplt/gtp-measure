@@ -98,6 +98,7 @@
 (define BASE "base")
 (define BOTH "both")
 (define TYPED "typed")
+(define SHALLOW "shallow")
 (define UNTYPED "untyped")
 
 (define INPUT-EXTENSION #".in")
@@ -582,7 +583,7 @@
           (for ([configuration-id (in-lines)]
                 [cfg-i (in-naturals (+ 1 configs-done))])
             (log-gtp-measure-info "~a ~a" (fmt cfg-i) configuration-id)
-            (copy-configuration! configuration-id tu-dir configuration-dir)
+            (copy-tu-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
             (void
               ((make-file-timer entry-file config) configuration-out)
@@ -609,7 +610,7 @@
           (for ([configuration-id (in-lines)]
                 [cfg-i (in-naturals (+ 1 configs-done))])
             (log-gtp-measure-info "~a ~a" (fmt cfg-i) configuration-id)
-            (copy-configuration! configuration-id tu-dir configuration-dir)
+            (copy-dsu-configuration! configuration-id tu-dir configuration-dir)
             (define-values [configuration-in configuration-out] (make-pipe))
             (void
               ((make-file-timer entry-file config) configuration-out)
@@ -623,17 +624,38 @@
   (log-gtp-measure-debug "deleting zo folder ~a" compiled)
   (delete-directory/files compiled #:must-exist? #f))
 
-(define (copy-configuration! configuration-id src-dir dst-dir)
+(define (copy-tu-configuration! configuration-id src-dir dst-dir)
   (define t-dir (build-path src-dir TYPED))
   (define u-dir (build-path src-dir UNTYPED))
-  (define s-dir (build-path src-dir ".." (format "tag_~a" (path->string (file-name-from-path src-dir))) TYPED))
   (for ([t-file (filename-sort (set->list (racket-filenames t-dir)))]
         [u-file (filename-sort (set->list (racket-filenames u-dir)))]
         [bit (in-string configuration-id)])
     (unless (equal? t-file u-file)
-      (raise-arguments-error 'copy-configuration! "mis-matched filenames"
+      (raise-arguments-error 'copy-tu-configuration! "mis-matched filenames"
                              "untyped file" u-file
                              "typed file" t-file
+                             "directory" src-dir))
+    (copy-file (build-path (if (eq? #\1 bit) t-dir u-dir) t-file)
+               (build-path dst-dir t-file)
+               #true)))
+
+(define (copy-dsu-configuration! configuration-id src-dir dst-dir)
+  (define t-dir (build-path src-dir TYPED))
+  (define u-dir (build-path src-dir UNTYPED))
+  (define s-dir (build-path src-dir SHALLOW))
+  (for ([t-file (filename-sort (set->list (racket-filenames t-dir)))]
+        [s-file (filename-sort (set->list (racket-filenames s-dir)))]
+        [u-file (filename-sort (set->list (racket-filenames u-dir)))]
+        [bit (in-string configuration-id)])
+    (unless (equal? t-file u-file)
+      (raise-arguments-error 'copy-dsu-configuration! "mis-matched filenames"
+                             "untyped file" u-file
+                             "typed file" t-file
+                             "directory" src-dir))
+    (unless (equal? t-file s-file)
+      (raise-arguments-error 'copy-dsu-configuration! "mis-matched filenames"
+                             "typed file" t-file
+                             "shallow file" s-file
                              "directory" src-dir))
     (copy-file (build-path (if (eq? #\1 bit) t-dir (if (eq? #\2 bit) s-dir u-dir)) t-file)
                (build-path dst-dir t-file)
@@ -767,6 +789,7 @@
   (define TEST-DIR (simplify-path (build-path CWD "test")))
   (define F-TGT (build-path TEST-DIR "sample-file-target.rkt"))
   (define T-TGT (build-path TEST-DIR "sample-typed-untyped-target"))
+  (define D-TGT (build-path TEST-DIR "sample-deep-shallow-untyped-target"))
   (define M-TGT (build-path TEST-DIR "sample-manifest-target.rkt"))
   (define M-BIN-TGT (build-path TEST-DIR "sample-manifest-target-bin.rkt"))
   (define MY-TGT (build-path TEST-DIR "sample-test.rkt"))
@@ -792,6 +815,7 @@
   (filesystem-test-case "write-checklist"
     (define tgts (list (cons (path->string F-TGT) kind:file)
                        (cons (path->string T-TGT) kind:typed-untyped)
+                       (cons (path->string D-TGT) kind:deep-shallow-untyped)
                        (cons (path->string M-TGT) kind:manifest)))
     (define config (init-config))
     (define task-dir (build-path TEST-DIR (format "test-dir-~a" (length (directory-list TEST-DIR)))))
@@ -802,7 +826,8 @@
     ;; check modified state
     (let ([tu-path (build-path task-dir "1-sample-typed-untyped-target.in")]
           [tu-dir (build-path task-dir "1-sample-typed-untyped-target")]
-          [m-dir (build-path task-dir "2-sample-manifest-target.rkt")])
+          [dsu-dir (build-path task-dir "2-sample-deep-shallow-untyped-target")]
+          [m-dir (build-path task-dir "3-sample-manifest-target.rkt")])
       (check-pred file-exists?
         tu-path)
       (check-equal?
@@ -812,6 +837,10 @@
         tu-dir)
       (check-pred directory-exists?
         (build-path tu-dir CONFIG))
+      (check-pred directory-exists?
+        dsu-dir)
+      (check-pred directory-exists?
+        (build-path dsu-dir CONFIG))
       (check-pred directory-exists?
         m-dir)
       (check-pred null?
@@ -910,11 +939,20 @@
     (check-equal? (car out-str*) "#lang gtp-measure/output/file")
     (check-true (andmap time-line? (cdr out-str*))))
 
-  (filesystem-test-case "copy-configuration!"
+  (filesystem-test-case "copy-tu-configuration!"
     (define configuration-dir (build-path TEST-DIR "sample-typed-untyped-configuration"))
     (unless (directory-exists? configuration-dir)
       (make-directory configuration-dir))
-    (copy-configuration! "00" T-TGT configuration-dir)
+    (copy-tu-configuration! "00" T-TGT configuration-dir)
+    (check-pred file-exists?
+      (build-path configuration-dir "main.rkt"))
+    (check-equal? (length (directory-list configuration-dir)) 2))
+
+  (filesystem-test-case "copy-dsu-configuration!"
+    (define configuration-dir (build-path TEST-DIR "sample-deep-shallow-untyped-configuration"))
+    (unless (directory-exists? configuration-dir)
+      (make-directory configuration-dir))
+    (copy-dsu-configuration! "00" D-TGT configuration-dir)
     (check-pred file-exists?
       (build-path configuration-dir "main.rkt"))
     (check-equal? (length (directory-list configuration-dir)) 2))
@@ -957,6 +995,52 @@
       (- (length out-str*) 1)
       "missing evidence that 'zo' files deleted between configurations")
     (check-equal? (car out-str*) "#lang gtp-measure/output/typed-untyped")
+    (for ((c (in-list configuration*))
+          (str (in-list (cdr out-str*))))
+      (define v
+        (with-input-from-string str read))
+      (check-pred list? v)
+      (check-equal? (car v) c)
+      (check-equal? (length (cadr v)) (config-ref config key:iterations))
+      (check-true (andmap time-line? (cadr v)))))
+
+  (filesystem-test-case "deep-shallow-untyped->subtask*"
+    (define configuration-dir (build-path TEST-DIR "sample-deep-shallow-untyped-configuration"))
+    (unless (directory-exists? configuration-dir)
+      (make-directory configuration-dir))
+    (define configuration*
+      '("00" "01" "02" "10" "20" "11" "12" "21" "22"))
+    (define in-file
+      (let ([p (build-path TEST-DIR "sample-deep-shallow-untyped.in")])
+        (with-output-to-file p
+          (lambda ()
+            (for ((c (in-list configuration*)))
+              (displayln c))))
+        p))
+    (define out-file
+      (build-path TEST-DIR "sample-deep-shallow-untyped.out"))
+    (define config
+      (init-config (make-immutable-hash
+                     (list (cons key:iterations 2)
+                           (cons key:jit-warmup 0)))))
+    (define st* (deep-shallow-untyped->subtask* D-TGT configuration-dir (list in-file) (list out-file) config))
+    (check-equal? (length st*) 1)
+    (define-values [log-hash out-str*]
+      (let ([inbox (force/gtp-measure (lambda () (subtask-run! (car st*))) #:level 'debug)])
+        (values inbox
+                (begin0
+                  (file->lines out-file)
+                  (delete-directory/files configuration-dir)
+                  (delete-file in-file)
+                  (delete-file out-file)))))
+    (check-equal? (length out-str*) 10)
+    (check-equal?
+      (for/sum ([msg (in-list (hash-ref log-hash 'debug))]
+                #:when (regexp-match? #rx"deleting zo folder" msg))
+        1)
+      (- (length out-str*) 1)
+      "missing evidence that 'zo' files deleted between configurations")
+    (check-equal? (car out-str*) "#lang gtp-measure/output/deep-shallow-untyped")
     (for ((c (in-list configuration*))
           (str (in-list (cdr out-str*))))
       (define v
@@ -1069,6 +1153,7 @@
   (filesystem-test-case "task->count-programs"
     (define tgts (list (cons (path->string F-TGT) kind:file)
                        (cons (path->string T-TGT) kind:typed-untyped)
+                       (cons (path->string D-TGT) kind:deep-shallow-untyped)
                        (cons (path->string M-TGT) kind:manifest)))
     (define config (init-config))
     ;; modify the state of the filesystem
@@ -1083,7 +1168,8 @@
         (delete-directory/files task-dir)
         (values total unmeasured)))
     (check-equal? actual-total (+ 1
-                                  (typed-untyped->num-configurations T-TGT)
+                                  1 (typed-untyped->num-configurations T-TGT)
+                                  1 (deep-shallow-untyped->num-configurations D-TGT)
                                   1))
     (check-equal? actual-unmeasured
                   (- actual-total 1)))
