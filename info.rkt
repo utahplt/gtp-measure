@@ -18,7 +18,7 @@
   "typed-racket-lib" ;; why?
 ))
 (define pkg-desc "Benchmark harness")
-(define version "1.0")
+(define version "1.1")
 (define pkg-authors '(ben))
 (define scribblings '(("scribblings/gtp-measure.scrbl" ())))
 (define raco-commands '(("gtp-measure" (submod gtp-measure/private/raco main) "Collect performance data" #f)))

@@ -1161,15 +1161,15 @@
       (let ()
         (define t (init-task tgts config))
         (define task-dir (task->directory t))
-        (with-output-to-file (file->outfile task-dir F-TGT 0)
+        (with-output-to-file (file->outfile task-dir F-TGT 1)
           (lambda () (writeln "fake-runtime")))
         (define total (task->total-programs t))
         (define unmeasured (task->num-unmeasured-programs t))
         (delete-directory/files task-dir)
         (values total unmeasured)))
     (check-equal? actual-total (+ 1
-                                  1 (typed-untyped->num-configurations T-TGT)
-                                  1 (deep-shallow-untyped->num-configurations D-TGT)
+                                  (typed-untyped->num-configurations T-TGT)
+                                  (deep-shallow-untyped->num-configurations D-TGT)
                                   1))
     (check-equal? actual-unmeasured
                   (- actual-total 1)))
