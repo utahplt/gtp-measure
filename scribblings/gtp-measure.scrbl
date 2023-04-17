@@ -104,7 +104,7 @@ A @deftech{gtp-measure target} is either:
    (possibly via @racket[time]);
 }
 @item{
-  @deftech{gtp typed/untyped target} :
+  @deftech{gtp typed-untyped target} :
   a directory
    containing: (1) a @filepath{typed} directory, (2) an @filepath{untyped} directory,
    (3) optionally a @filepath{base} directory, and (4) optionally a @filepath{both} directory.
@@ -128,7 +128,7 @@ A @deftech{gtp-measure target} is either:
      were in the same directory (e.g. @filepath{file.rkt}).
     If so, the @filepath{typed} and @filepath{untyped} modules will not compile
      unless the @filepath{both} modules are copied into their directory.
-    This is @seclink["gtp-typed/untyped-design"]{by design}.
+    This is @seclink["gtp-typed-untyped-design"]{by design}.
   }
   ]
 }
@@ -137,7 +137,7 @@ A @deftech{gtp-measure target} is either:
   a file containing a @racketmodname[gtp-measure/manifest] module.
 }
 @item{
-  @deftech{gtp deep/shallow/untyped target} :
+  @deftech{gtp deep-shallow-untyped target} :
   a directory
    containing: (1) a @filepath{typed} directory, (2) an @filepath{untyped} directory,
    (3) a @filepath{shallow} directory,
@@ -145,7 +145,7 @@ A @deftech{gtp-measure target} is either:
   @itemlist[
   @item{
     The @filepath{typed} and @filepath{untyped} directories must follow the same
-    guidelines as for a @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target}.
+    guidelines as for a @tech[#:key "gtp-typed-untyped-target"]{typed-untyped target}.
   }
   @item{
     The @filepath{shallow} directory must contain matching typed modules
@@ -162,7 +162,7 @@ A @deftech{gtp-measure target} is either:
      were in the same directory (e.g. @filepath{file.rkt}).
     If so, the @filepath{typed} and @filepath{untyped} modules will not compile
      unless the @filepath{both} modules are copied into their directory.
-    This is @seclink["gtp-typed/untyped-design"]{by design}.
+    This is @seclink["gtp-typed-untyped-design"]{by design}.
   }
   ]
 }
@@ -174,9 +174,9 @@ To measure a @tech[#:key "gtp-file-target"]{file target},
 See @secref{gtp-measure-config} for details on how @racketmodname[gtp-measure]
  compiles and runs Racket modules.
 
-To measure a @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target},
+To measure a @tech[#:key "gtp-typed-untyped-target"]{typed-untyped target},
  @racketmodname[gtp-measure] chooses a sequence of
- @tech{typed/untyped configurations} and, for each: copies the configuration to
+ @tech{typed-untyped configurations} and, for each: copies the configuration to
  a directory, and runs this program's
  @tech[#:key "gtp-entry-module"]{entry module} as a file target.
 The sequence of configurations is either
@@ -186,14 +186,14 @@ The sequence of configurations is either
 To measure a manifest target, @racketmodname[gtp-measure] runs the targets
  listed in the manifest.
 
-To measure a @tech[#:key "gtp-deep/shallow/untyped-target"]{deep/shallow/untyped target},
- the protocol is similar to @tech[#:key "gtp-typed/untyped-target"]{typed/untyped targets}.
+To measure a @tech[#:key "gtp-deep-shallow-untyped-target"]{deep-shallow-untyped target},
+ the protocol is similar to @tech[#:key "gtp-typed-untyped-target"]{typed-untyped targets}.
 
 
-@subsection{Typed/Untyped Configuration}
+@subsection{Typed-Untyped Configuration}
 
-A @deftech{typed/untyped configuration} for a
- @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target} with @math{M}
+A @deftech{typed-untyped configuration} for a
+ @tech[#:key "gtp-typed-untyped-target"]{typed-untyped target} with @math{M}
  modules is a working program with @math{M} modules --- some typed (maybe none),
  some untyped.
 
@@ -231,7 +231,7 @@ Modules are ordered by @racket[filename-sort].
      #:date 2018))
 
 An @deftech[#:key "gtp-measure-exhaustive"]{exhaustive evaluation} of a
- @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target} with @math{M}
+ @tech[#:key "gtp-typed-untyped-target"]{typed-untyped target} with @math{M}
  modules measures the performance of all @math{2^M} configurations.
 This is a lot of measuring, and will probably take a very long time if @math{M}
  is @math{15} or more.
@@ -253,13 +253,13 @@ Note that @racketmodname[gtp-measure] uses a different definition of @math{S}
  than the PEPM paper.
 
 
-@subsection[#:tag "gtp-typed/untyped-design"]{Design: typed/untyped directory}
+@subsection[#:tag "gtp-typed-untyped-design"]{Design: typed-untyped directory}
 
-The point of a @tech[#:key "gtp-typed/untyped-target"]{typed/untyped directory}
+The point of a @tech[#:key "gtp-typed-untyped-target"]{typed-untyped directory}
  is to describe an exponentially-large set of programs in ``less than exponential'' space.
 The set is all ways of taking a Typed Racket program and removing some of its
  types --- specifically, removing types from some of the modules in the program.
-So given a typed/untyped directory, @racketmodname[gtp-measure] needs to be able
+So given a typed-untyped directory, @racketmodname[gtp-measure] needs to be able
  to generate and run each program.
 
 The @filepath{typed} and @filepath{untyped} directories are a first step to
@@ -351,14 +351,14 @@ This section documents the available keys and the type of values each key expect
   Determines the size of each sample in any
    @tech[#:key "gtp-measure-approximate"]{approximate} evaluations.
   The size is @math{S*M}, where @math{S} is the value associated with this key
-   and @math{M} is the number of modules in the @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target}.
+   and @math{M} is the number of modules in the @tech[#:key "gtp-typed-untyped-target"]{typed-untyped target}.
 }
 
 @defidform[#:kind "symbol" key:cutoff]{
   Value must be an @racket[exact-nonnegative-integer?].
 
   Determines whether to run an exhaustive or approximate evaluation for a
-   @tech[#:key "gtp-typed/untyped-target"]{typed/untyped target}.
+   @tech[#:key "gtp-typed-untyped-target"]{typed-untyped target}.
   Let @math{M} be the number of modules in the target and let @math{C} be the
    value associated with this key.
   If @racket[(<= M C)], then @racket[gtp-measure] runs an exhaustive evaluation;
@@ -369,9 +369,9 @@ This section documents the available keys and the type of values each key expect
   Value must be a string that represents a filename.
 
   Determines the @deftech[#:key "gtp entry module"]{entry module} of all
-   @tech[#:key "gtp-typed/untyped-target"]{typed/untyped targets}.
+   @tech[#:key "gtp-typed-untyped-target"]{typed-untyped targets}.
   This module is treated as a @tech[#:key "gtp-file-target"]{file target} for
-   each configuration in the typed/untyped evaluation.
+   each configuration in the typed-untyped evaluation.
 }
 
 @defidform[#:kind "symbol" key:start-time]{
@@ -515,10 +515,10 @@ There is an internal syntax class for these ``target descriptors'' that should
 
 }
 
-@subsection{Output Data: Typed/Untyped Target}
+@subsection{Output Data: Typed-Untyped Target}
 
 @defmodulelang[gtp-measure/output/typed-untyped]{
-  Output data for a @tech{gtp typed/untyped target}.
+  Output data for a @tech{gtp typed-untyped target}.
 
   Each line is the result for one configuration.
   The first element is the name of the configuration;
@@ -539,10 +539,10 @@ There is an internal syntax class for these ``target descriptors'' that should
 }
 }
 
-@subsection{Output Data: Deep/Shallow/Untyped Target}
+@subsection{Output Data: Deep-Shallow-Untyped Target}
 
 @defmodulelang[gtp-measure/output/deep-shallow-untyped]{
-  Output data for a @tech{gtp deep/shallow/untyped target}.
+  Output data for a @tech{gtp deep-shallow-untyped target}.
 
   Each line is the result for one configuration.
   The first element is the name of the configuration;
