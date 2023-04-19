@@ -537,6 +537,19 @@ There is an internal syntax class for these ``target descriptors'' that should
 ("00011" ("cpu time: 805 real time: 807 gc time: 47" "cpu time: 813 real time: 815 gc time: 45"))
 ....
 }
+
+  Running an output file prints a summary:
+
+@codeblock[#:keep-lang-line? #true #:context #f]{
+$ racket jpeg-2020-08-17.rktd
+dataset info:
+- num configs: 32
+- num timings: 256
+- min time: 110 ms
+- max time: 8453 ms
+- total time: 968537 ms
+}
+
 }
 
 @subsection{Output Data: Deep-Shallow-Untyped Target}
@@ -567,6 +580,19 @@ There is an internal syntax class for these ``target descriptors'' that should
 ("00100" ("cpu time: 7154 real time: 7158 gc time: 80"))
 ....
 }
+
+  Running an output file prints a summary:
+
+@codeblock[#:keep-lang-line? #true #:context #f]{
+$ racket jpeg-2020-08-17.rktd
+dataset info:
+- num configs: 243
+- num timings: 1944
+- min time: 117 ms
+- max time: 9036 ms
+- total time: 6827787 ms
+}
+
 }
 
 
