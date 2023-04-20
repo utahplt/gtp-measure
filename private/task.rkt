@@ -63,7 +63,7 @@
     exn:fail:resource?
     call-with-deep-time-limit)
   (only-in racket/system
-    process)
+    process*)
   (only-in racket/list
     make-list)
   (only-in racket/string
@@ -672,55 +672,66 @@
   (define time-limit (config-ref config key:time-limit))
   (define devnull ;; https://stackoverflow.com/a/313115/5237018
     (case (system-type 'os) ((windows) "NUL") (else "/dev/null")))
-  (define cmd
-    (let* ([compile-cmd (format "~a make -v ~a" raco-bin filename)]
-           [run-cmd (format "~a ~a" racket-bin filename)]
-           [ignore-cmd (format "~a > ~a" run-cmd devnull)])
-    (string-join
+  (define cmd*
+    (let* ([compile-cmd (list raco-bin  "make" "-v" filename)]
+           [run-cmd (list racket-bin filename)]
+           [ignore-cmd run-cmd])
       (append
         (list compile-cmd)
         (make-list jit-warmup ignore-cmd)
-        (make-list iterations run-cmd))
-      " && ")))
+        (make-list iterations run-cmd))))
   (lambda ([out-port (current-output-port)])
     (define file-dir (path-only filename))
     (delete-compiled! file-dir)
-    (define-values [sub-in sub-out sub-pid sub-err sub-control]
-      (parameterize ([current-directory file-dir])
-        (apply values (process cmd #:set-pwd? #true))))
-    (log-gtp-measure-info "begin subprocess ~a" sub-pid)
-    (define exit-code
+    (define *stop (box #f))
+    (define *pid (box #f))
+    (define *control (box #f))
+    (define (run-all)
+      (for ((cmd (in-list cmd*))
+            (ii (in-naturals))
+            #:unless (unbox *stop))
+        (define ignore-output? (<= ii jit-warmup)) ;; ignore compile + warmup
+        (define-values [sub-in sub-out sub-pid sub-err sub-control]
+          (parameterize ([current-directory file-dir])
+            (apply values (apply process* cmd #:set-pwd? #true))))
+        (set-box! *pid sub-pid)
+        (set-box! *control sub-control)
+        (log-gtp-measure-info "begin subprocess ~a" sub-pid)
+        (define exit-code
+          (let loop ()
+            (sub-control 'wait)
+            (or (sub-control 'exit-code)
+                (begin (log-gtp-measure-warning "resume subprocess ~a" sub-pid)
+                       (loop)))))
+        (log-gtp-measure-info "end subprocess ~a" sub-pid)
+        (cond
+         [(zero? exit-code)
+          (unless ignore-output?
+            (for ((ln (in-lines sub-in))
+                  #:when (time-line? ln))
+              (displayln ln out-port)))
+          (void)]
+         [else
+          (log-gtp-measure-error "subprocess ~a terminated with exit code ~a" sub-pid exit-code)
+          (define sub-err-str (port->string sub-err))
+          (displayln (string-replace sub-err-str "\n" " ") out-port)
+          (log-gtp-measure-error sub-err-str)
+          (set-box! *stop #true)
+          (void)])
+        (close-output-port sub-out)
+        (close-input-port sub-in)
+        (close-input-port sub-err)
+        (void)))
+    (if time-limit
       (let ()
-        (define (loop)
-          (sub-control 'wait)
-          (or (sub-control 'exit-code)
-              (begin (log-gtp-measure-warning "resume subprocess ~a" sub-pid)
-                     (loop))))
-        (if time-limit
-          (with-handlers ([exn:fail:resource? (lambda (ex) #false)])
-            (call-with-deep-time-limit time-limit loop))
-          (loop))))
-    (log-gtp-measure-info "end subprocess ~a" sub-pid)
-    (cond
-     [(not exit-code)
-      (log-gtp-measure-warning "subprocess ~a exceeded time limit (~as)" sub-pid time-limit)
-      (fprintf out-port "timeout ~a" (* time-limit 1000))
-      (void)]
-     [(zero? exit-code)
-      (for ((ln (in-lines sub-in))
-            #:when (time-line? ln))
-        (displayln ln out-port))
-      (void)]
-     [else
-      (log-gtp-measure-error "subprocess ~a terminated with exit code ~a" sub-pid exit-code)
-      (define sub-err-str (port->string sub-err))
-      (displayln (string-replace sub-err-str "\n" " ") out-port)
-      (log-gtp-measure-error sub-err-str)
-      (void)])
-    (close-output-port sub-out)
-    (close-input-port sub-in)
-    (close-input-port sub-err)
-    (void)))
+        (define (handle-timeout ex)
+          (log-gtp-measure-warning "subprocess ~a exceeded time limit (~as)" (unbox *pid) time-limit)
+          (fprintf out-port "timeout ~a" (* time-limit 1000))
+          ((unbox *control) 'kill)
+          (void))
+        (with-handlers ([exn:fail:resource? handle-timeout])
+          (call-with-deep-time-limit time-limit run-all)))
+      (run-all))))
 
 (define time-line?
   (let ([rx #rx"^cpu time:"])
@@ -1073,7 +1084,7 @@
           (file->lines test-file)
           (delete-file test-file))))
     (for ((out-str* (in-list (list out-str-1* out-str-2*))))
-      (check-equal? (length out-str*) (config-ref config key:iterations))
+      (check-equal? (length out-str*) (config-ref config key:iterations)) ;; TODO
       (check-equal? (length out-str*) (config-ref config key:iterations))
       (check-pred time-line? (car out-str*))
       (check-true (andmap time-line? out-str*))))
@@ -1096,7 +1107,7 @@
         (begin0
           (file->lines test-file)
           (delete-file test-file))))
-    (check-equal? (length out-str*) 1))
+    (check-equal? (length out-str*) 1)) ;; TODO
 
   (filesystem-test-case "make-file-timer/timeout-fail"
     (define test-file (build-path TEST-DIR "test-make-file-timer.txt"))
