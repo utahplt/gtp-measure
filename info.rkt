@@ -24,3 +24,4 @@
 (define raco-commands '(("gtp-measure" (submod gtp-measure/private/raco main) "Collect performance data" #f)))
 (define compile-omit-paths '("private/test"))
 (define test-omit-paths '("private/test"))
+(define license 'MIT)
